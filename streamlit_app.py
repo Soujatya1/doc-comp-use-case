@@ -140,7 +140,7 @@ Extract the sections and return as JSON format:
     
     def compare_documents_with_llm(self, doc1_sections: Dict[str, str], doc2_sections: Dict[str, str], 
                                  doc1_name: str, doc2_name: str, sample_number: str) -> List[Dict]:
-        """Use LLM to intelligently compare document sections and find meaningful content differences only."""
+        """Use LLM to intelligently compare document sections and create results for ALL sections."""
         
         system_prompt = """You are an expert document comparison analyst focused on identifying meaningful content differences. Your task is to compare corresponding sections from two documents and identify ONLY substantive content differences.
 
@@ -162,7 +162,7 @@ FOCUS ONLY on these types of meaningful differences:
 - Changed legal language or contractual terms
 - Missing or additional clauses/paragraphs with substantive content
 
-For each meaningful difference found, provide a specific description of what content changed, was added, or was removed. Focus on the actual information that differs, not how it's presented."""
+For each meaningful difference found, mention the same in a detailed way and point out the specific details as to whether what changed"""
 
         comparison_results = []
         
@@ -198,12 +198,11 @@ If no meaningful content differences exist, respond with "NO_CONTENT_DIFFERENCE"
                 
                 response = self.llm.invoke(messages)
                 
-                # Parse the comparison result
-                comparison_result = self._parse_comparison_response(
+                # Create result for this section (regardless of differences)
+                comparison_result = self._create_section_result(
                     response.content, section, doc1_content, doc2_content, sample_number
                 )
-                if comparison_result:
-                    comparison_results.append(comparison_result)
+                comparison_results.append(comparison_result)
                 
             except Exception as e:
                 logger.error(f"Error comparing section {section}: {str(e)}")
@@ -211,7 +210,8 @@ If no meaningful content differences exist, respond with "NO_CONTENT_DIFFERENCE"
                     'Samples affected': sample_number,
                     'Observation - Category': 'Mismatch of content between Filed Copy and customer copy',
                     'Page': self._get_page_name(section),
-                    'Sub-category of Observation': f'Error during comparison: {str(e)}'
+                    'Sub-category of Observation': f'Error during comparison: {str(e)}',
+                    'Content': f"Filed Copy: {doc1_content[:500]}{'...' if len(doc1_content) > 500 else ''}\n\nCustomer Copy: {doc2_content[:500]}{'...' if len(doc2_content) > 500 else ''}"
                 })
         
         return comparison_results
@@ -225,10 +225,10 @@ If no meaningful content differences exist, respond with "NO_CONTENT_DIFFERENCE"
         }
         return section_mapping.get(section, section.title())
     
-    def _parse_comparison_response(self, response_content: str, section: str, doc1_content: str, 
+    def _create_section_result(self, response_content: str, section: str, doc1_content: str, 
                              doc2_content: str, sample_number: str) -> Dict:
-        """Parse LLM comparison response into structured format, focusing on content differences only."""
-    
+        """Create result for each section, showing content regardless of differences."""
+        
         # Check if there are no meaningful content differences
         no_diff_indicators = [
             "NO_CONTENT_DIFFERENCE",
@@ -241,8 +241,7 @@ If no meaningful content differences exist, respond with "NO_CONTENT_DIFFERENCE"
         ]
         
         response_upper = response_content.upper()
-        if any(indicator in response_upper for indicator in no_diff_indicators):
-            return None  # Return None for no meaningful content differences
+        has_differences = not any(indicator in response_upper for indicator in no_diff_indicators)
         
         # Also check for responses that only mention formatting/structural differences
         formatting_only_indicators = [
@@ -255,30 +254,85 @@ If no meaningful content differences exist, respond with "NO_CONTENT_DIFFERENCE"
         ]
         
         if any(indicator in response_upper for indicator in formatting_only_indicators):
-            return None  # Ignore formatting-only differences
+            has_differences = False
         
-        # Check for missing sections
+        # Prepare content for display
+        content_display = self._prepare_content_display(doc1_content, doc2_content, section)
+        
+        # Handle missing sections
         if doc1_content == "NOT FOUND" and doc2_content == "NOT FOUND":
             return {
                 'Samples affected': sample_number,
                 'Observation - Category': 'Mismatch of content between Filed Copy and customer copy',
                 'Page': self._get_page_name(section),
-                'Sub-category of Observation': 'Section not found in both documents'
+                'Sub-category of Observation': 'Section not found in both documents',
+                'Content': 'Section not found in either document'
             }
         elif doc1_content == "NOT FOUND":
             return {
                 'Samples affected': sample_number,
                 'Observation - Category': 'Mismatch of content between Filed Copy and customer copy',
                 'Page': self._get_page_name(section),
-                'Sub-category of Observation': 'Section missing in Filed Copy'
+                'Sub-category of Observation': 'Section missing in Filed Copy',
+                'Content': content_display
             }
         elif doc2_content == "NOT FOUND":
             return {
                 'Samples affected': sample_number,
                 'Observation - Category': 'Mismatch of content between Filed Copy and customer copy',
                 'Page': self._get_page_name(section),
-                'Sub-category of Observation': 'Section missing in Customer Copy'
+                'Sub-category of Observation': 'Section missing in Customer Copy',
+                'Content': content_display
             }
+        
+        # Determine observation category and sub-category
+        if has_differences:
+            # Parse the LLM response for meaningful differences
+            sub_category = self._parse_difference_description(response_content)
+            observation_category = 'Mismatch of content between Filed Copy and customer copy'
+        else:
+            # No meaningful content differences
+            sub_category = 'No meaningful content differences found'
+            observation_category = 'Content matches between Filed Copy and customer copy'
+        
+        return {
+            'Samples affected': sample_number,
+            'Observation - Category': observation_category,
+            'Page': self._get_page_name(section),
+            'Sub-category of Observation': sub_category,
+            'Content': content_display
+        }
+    
+    def _prepare_content_display(self, doc1_content: str, doc2_content: str, section: str) -> str:
+        """Prepare content display for the Content column."""
+        
+        # If both contents are identical, show once
+        if doc1_content == doc2_content and doc1_content != "NOT FOUND":
+            content = doc1_content
+            # Truncate if too long for Excel display
+            if len(content) > 1000:
+                content = content[:1000] + "... [Content truncated for display]"
+            return f"[IDENTICAL CONTENT]\n{content}"
+        
+        # If contents are different, show both
+        result_parts = []
+        
+        if doc1_content != "NOT FOUND":
+            filed_content = doc1_content
+            if len(filed_content) > 500:
+                filed_content = filed_content[:500] + "... [Truncated]"
+            result_parts.append(f"[FILED COPY]\n{filed_content}")
+        
+        if doc2_content != "NOT FOUND":
+            customer_content = doc2_content
+            if len(customer_content) > 500:
+                customer_content = customer_content[:500] + "... [Truncated]"
+            result_parts.append(f"[CUSTOMER COPY]\n{customer_content}")
+        
+        return "\n\n".join(result_parts)
+    
+    def _parse_difference_description(self, response_content: str) -> str:
+        """Parse LLM response to extract difference description."""
         
         # Clean up the LLM response to use as sub-category
         sub_category = response_content.strip()
@@ -305,72 +359,58 @@ If no meaningful content differences exist, respond with "NO_CONTENT_DIFFERENCE"
         for prefix in prefixes_to_remove:
             if sub_category.upper().startswith(prefix.upper()):
                 sub_category = sub_category[len(prefix):].strip()
-                break  # Exit after first match to avoid multiple removals
+                break
         
         # Clean up common suffixes and extra whitespace
-        sub_category = re.sub(r'\s+', ' ', sub_category)  # Replace multiple spaces with single space
-        sub_category = sub_category.strip('. \n\r\t')  # Remove trailing dots, spaces, newlines
+        sub_category = re.sub(r'\s+', ' ', sub_category)
+        sub_category = sub_category.strip('. \n\r\t')
         
         # Remove bullet points and numbering from the beginning
-        sub_category = re.sub(r'^[-•*]\s*', '', sub_category)  # Remove bullet points
-        sub_category = re.sub(r'^\d+\.\s*', '', sub_category)  # Remove numbering like "1. "
+        sub_category = re.sub(r'^[-•*]\s*', '', sub_category)
+        sub_category = re.sub(r'^\d+\.\s*', '', sub_category)
         
         # If response contains multiple lines, take the first meaningful line
         lines = [line.strip() for line in sub_category.split('\n') if line.strip()]
         if lines:
-            # Use the first substantial line (more than 10 characters)
             for line in lines:
                 if len(line) > 10:
                     sub_category = line
                     break
             else:
-                sub_category = lines[0]  # Fallback to first line if none are substantial
+                sub_category = lines[0]
         
-        # Increase length limit to capture more detail (was 200, now 500)
+        # Truncate if too long
         if len(sub_category) > 500:
-            # Find a good breaking point (sentence end) near the limit
             truncate_at = 497
             last_sentence_end = max(
                 sub_category.rfind('.', 0, truncate_at),
                 sub_category.rfind('!', 0, truncate_at),
                 sub_category.rfind('?', 0, truncate_at)
             )
-            if last_sentence_end > 200:  # If we found a sentence end reasonably close
+            if last_sentence_end > 200:
                 sub_category = sub_category[:last_sentence_end + 1]
             else:
                 sub_category = sub_category[:497] + "..."
         
-        # Enhanced check for generic responses
-        generic_responses = [
-            "differences found", "content differs", "changes detected",
-            "variations identified", "discrepancies found", "differences exist",
-            "content mismatch", "text differs"
-        ]
-        
-        # Only replace if it's very short AND generic
-        if len(sub_category) < 10 or sub_category.lower().strip() in generic_responses:
-            sub_category = f"Meaningful content differences identified in {self._get_page_name(section)} section"
-        
-        # Final cleanup - ensure it doesn't start with lowercase (unless it's a continuation)
+        # Ensure it starts with uppercase
         if sub_category and len(sub_category) > 0:
             sub_category = sub_category[0].upper() + sub_category[1:]
         
-        return {
-            'Samples affected': sample_number,
-            'Observation - Category': 'Mismatch of content between Filed Copy and customer copy',
-            'Page': self._get_page_name(section),
-            'Sub-category of Observation': sub_category
-        }
+        # Default if too generic or short
+        if len(sub_category) < 10:
+            sub_category = f"Meaningful content differences identified in section"
+        
+        return sub_category
     
     def create_excel_report(self, comparison_results: List[Dict], doc1_name: str, doc2_name: str) -> bytes:
-        """Create Excel report from comparison results with proper formatting."""
+        """Create Excel report from comparison results with proper formatting including Content column."""
         
         # Create DataFrame
         df = pd.DataFrame(comparison_results)
         
-        # Reorder columns to match the required format
+        # Reorder columns to include the new Content column
         if not df.empty:
-            df = df[['Samples affected', 'Observation - Category', 'Page', 'Sub-category of Observation']]
+            df = df[['Samples affected', 'Observation - Category', 'Page', 'Sub-category of Observation', 'Content']]
         
         # Create Excel file in memory
         output = io.BytesIO()
@@ -392,9 +432,11 @@ If no meaningful content differences exist, respond with "NO_CONTENT_DIFFERENCE"
                     for cell in column:
                         try:
                             if cell.value:
-                                # Handle the Sub-category of Observation column specially
+                                # Handle different columns specially
                                 if column_letter == 'D':  # Sub-category of Observation column
-                                    max_length = max(max_length, min(len(str(cell.value)), 100))
+                                    max_length = max(max_length, min(len(str(cell.value)), 80))
+                                elif column_letter == 'E':  # Content column
+                                    max_length = max(max_length, min(len(str(cell.value)), 120))
                                 else:
                                     max_length = max(max_length, len(str(cell.value)))
                         except:
@@ -402,9 +444,11 @@ If no meaningful content differences exist, respond with "NO_CONTENT_DIFFERENCE"
                     
                     # Set column width with reasonable limits
                     if column_letter == 'D':  # Sub-category of Observation column
-                        adjusted_width = min(max_length + 2, 100)  # Max width 100 for long descriptions
+                        adjusted_width = min(max_length + 2, 80)
+                    elif column_letter == 'E':  # Content column
+                        adjusted_width = min(max_length + 2, 120)  # Wider for content
                     else:
-                        adjusted_width = min(max_length + 2, 50)   # Max width 50 for other columns
+                        adjusted_width = min(max_length + 2, 30)
                     
                     worksheet.column_dimensions[column_letter].width = adjusted_width
                 
@@ -415,10 +459,14 @@ If no meaningful content differences exist, respond with "NO_CONTENT_DIFFERENCE"
                         cell.alignment = Alignment(wrap_text=True, vertical='top')
             
             # Summary sheet
+            sections_with_differences = len([r for r in comparison_results if 'Mismatch' in r.get('Observation - Category', '')])
+            sections_without_differences = len(comparison_results) - sections_with_differences
+            
             summary_data = {
                 'Metric': [
-                    'Total Sections Compared',
+                    'Total Sections Analyzed',
                     'Sections with Content Differences',
+                    'Sections without Content Differences',
                     'Document 1 Name (Filed Copy)',
                     'Document 2 Name (Customer Copy)',
                     'Comparison Date',
@@ -426,11 +474,12 @@ If no meaningful content differences exist, respond with "NO_CONTENT_DIFFERENCE"
                 ],
                 'Value': [
                     len(self.target_sections),
-                    len(comparison_results),
+                    sections_with_differences,
+                    sections_without_differences,
                     doc1_name,
                     doc2_name,
                     datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    'Content-Only Differences (Ignoring Structural Changes)'
+                    'Complete Section Analysis with Content Display'
                 ]
             }
             
@@ -463,13 +512,13 @@ If no meaningful content differences exist, respond with "NO_CONTENT_DIFFERENCE"
 
 def main():
     st.set_page_config(
-        page_title="Content-Focused Document Comparer",
+        page_title="Enhanced Document Comparer with Content Display",
         page_icon="📄",
         layout="wide"
     )
     
-    st.title("📄 Content-Focused Document Comparer")
-    st.markdown("Upload two PDF documents to compare specific sections focusing on **meaningful content differences only** (ignoring structural/formatting changes)")
+    st.title("📄 Enhanced Document Comparer with Content Display")
+    st.markdown("Upload two PDF documents to compare specific sections and view **all extracted content** with detailed analysis")
     
     # Sidebar for Azure OpenAI configuration
     with st.sidebar:
@@ -507,12 +556,11 @@ def main():
         st.markdown("• Definitions & Abbreviations")
         
         st.markdown("---")
-        st.markdown("**Focus Areas:**")
-        st.markdown("✅ Content differences")
-        st.markdown("✅ Missing/additional text")
-        st.markdown("✅ Changed values/dates")
-        st.markdown("❌ Formatting changes")
-        st.markdown("❌ Structural differences")
+        st.markdown("**Analysis Features:**")
+        st.markdown("✅ All sections shown")
+        st.markdown("✅ Content differences highlighted")
+        st.markdown("✅ Complete content display")
+        st.markdown("✅ Structured Excel output")
     
     # Main interface
     col1, col2 = st.columns(2)
@@ -540,7 +588,7 @@ def main():
             st.success(f"✅ {doc2_file.name} uploaded successfully")
     
     # Process documents
-    if st.button("🔍 Compare Documents (Content Only)", type="primary"):
+    if st.button("🔍 Analyze All Sections with Content", type="primary"):
         if not all([azure_endpoint, api_key, deployment_name]):
             st.error("❌ Please provide all Azure OpenAI configuration details")
             return
@@ -576,51 +624,63 @@ def main():
                 doc1_sections = comparer.filter_sections_with_llm(doc1_text, doc1_file.name)
                 doc2_sections = comparer.filter_sections_with_llm(doc2_text, doc2_file.name)
                 
-                # Compare documents using LLM (content-focused)
-                st.info("🔍 Comparing document content using AI...")
+                # Compare documents using LLM (now includes all sections)
+                st.info("🔍 Analyzing all sections with content...")
                 comparison_results = comparer.compare_documents_with_llm(
                     doc1_sections, doc2_sections, doc1_file.name, doc2_file.name, sample_number
                 )
                 
                 # Create Excel report
-                st.info("📊 Generating Excel report...")
+                st.info("📊 Generating comprehensive Excel report...")
                 excel_data = comparer.create_excel_report(
                     comparison_results, doc1_file.name, doc2_file.name
                 )
             
-            st.success("✅ Content-focused document comparison completed successfully!")
+            st.success("✅ Complete document analysis with content display completed successfully!")
             
             # Display results
-            st.subheader("📊 Comparison Results")
+            st.subheader("📊 Analysis Results")
             
             # Summary metrics
-            col1, col2, col3 = st.columns(3)
+            sections_with_differences = len([r for r in comparison_results if 'Mismatch' in r.get('Observation - Category', '')])
+            sections_without_differences = len(comparison_results) - sections_with_differences
+            
+            col1, col2, col3, col4 = st.columns(4)
             
             with col1:
-                st.metric("Total Sections Compared", len(comparer.target_sections))
+                st.metric("Total Sections Analyzed", len(comparer.target_sections))
             
             with col2:
-                st.metric("Sections with Content Differences", len(comparison_results))
+                st.metric("Sections with Differences", sections_with_differences)
             
             with col3:
+                st.metric("Sections without Differences", sections_without_differences)
+            
+            with col4:
                 st.metric("Sample Number", sample_number)
             
             # Detailed results table
-            if comparison_results:
-                st.subheader("📋 Detailed Content Differences")
-                df_display = pd.DataFrame(comparison_results)
-                st.dataframe(df_display, use_container_width=True)
-                
-                st.info("ℹ️ **Note**: Only meaningful content differences are shown. Formatting and structural changes are ignored.")
-            else:
-                st.info("✅ No meaningful content differences found between the documents!")
+            st.subheader("📋 Complete Section Analysis")
+            df_display = pd.DataFrame(comparison_results)
+            
+            # Create a display version without the full content for better viewing
+            df_display_short = df_display.copy()
+            df_display_short['Content (Preview)'] = df_display_short['Content'].apply(
+                lambda x: x[:200] + "..." if len(str(x)) > 200 else x
+            )
+            
+            # Show table without full content column for better display
+            display_columns = ['Samples affected', 'Observation - Category', 'Page', 'Sub-category of Observation', 'Content (Preview)']
+            st.dataframe(df_display_short[display_columns], use_container_width=True)
+            
+            st.info("ℹ️ **Note**: Complete content is available in the downloadable Excel report. Preview shows first 200 characters.")
             
             # Download Excel report
-            st.subheader("📥 Download Report")
+            st.subheader("📥 Download Complete Report")
             st.download_button(
-                label="📊 Download Content Differences Report",
+                label="📊 Download Complete Analysis with Content",
                 data=excel_data,
-                file_name=f"content_comparison_{sample_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                file_name=f"complete_analysis_{sample_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
             
