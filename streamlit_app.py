@@ -107,7 +107,6 @@ Extract the sections and return as JSON format:
                 SystemMessage(content=system_prompt),
                 HumanMessage(content=user_prompt)
             ]
-            logger.info(f"Sending to LLM (Filed Copy: {doc_name}):\n{user_prompt[:2000]}")
             response = self.llm.invoke(messages)
             json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
             if json_match:
@@ -594,6 +593,7 @@ def main():
                 # Extract text from PDFs
                 st.info("📖 Extracting text from documents...")
                 doc1_text = comparer.extract_text_from_pdf(doc1_file)
+                logger.info(f"Filed Copy extracted text:\n{doc1_text[:2000]}")
                 doc2_text = comparer.extract_text_from_pdf(doc2_file)
                 
                 if not doc1_text or not doc2_text:
