@@ -46,14 +46,33 @@ class DocumentComparer:
             logger.error(f"Error extracting text from PDF: {str(e)}")
             return ""
     
+    def extract_sample_number(self, document_text: str) -> str:
+        """Extract sample number from document text."""
+        # Common patterns for sample numbers
+        patterns = [
+            r'Sample\s*[#:]?\s*(\d+)',
+            r'Sample\s+No\.?\s*(\d+)',
+            r'Sample\s+Number\s*[:]?\s*(\d+)',
+            r'Doc\s*[#:]?\s*(\d+)',
+            r'Document\s*[#:]?\s*(\d+)',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, document_text, re.IGNORECASE)
+            if match:
+                return match.group(1)
+        
+        # If no pattern found, return default
+        return "001"
+    
     def filter_sections_with_llm(self, document_text: str, doc_name: str) -> Dict[str, str]:
         """Use LLM to filter and extract specific sections from document."""
         
         system_prompt = """You are an expert document analyzer. Your task is to extract specific sections from legal/business documents.
 
 Target sections to extract:
-1. FORWARDING LETTER
-2. PREAMBLE
+1. FORWARDING LETTER: Starts with "Sub: issuance of the policy under application for the life insurance policy dated" and ends with "Disclaimer: In case of dispute, English version of Policy bond shall be final and binding."
+2. PREAMBLE: Starts with "The Company has received a Proposal Form, declaration and the first Regular Premium from the Policyholder / Life Assured as named in this Schedule." and ends with "incorporated herein and forms the basis of this Policy."
 3. SCHEDULE
 4. DEFINITIONS & ABBREVIATIONS
 
@@ -120,7 +139,7 @@ Extract the sections and return as JSON format:
         return sections
     
     def compare_documents_with_llm(self, doc1_sections: Dict[str, str], doc2_sections: Dict[str, str], 
-                                 doc1_name: str, doc2_name: str) -> List[Dict]:
+                                 doc1_name: str, doc2_name: str, sample_number: str) -> List[Dict]:
         """Use LLM to intelligently compare document sections and find differences."""
         
         system_prompt = """You are an expert document comparison analyst. Your task is to intelligently compare corresponding sections from two documents and identify meaningful differences.
@@ -129,18 +148,14 @@ Instructions:
 - Compare each section between the two documents
 - Identify content differences, structural changes, additions, deletions, and modifications
 - Focus on meaningful differences, not minor formatting variations
-- Categorize differences as: ADDED, REMOVED, MODIFIED, STRUCTURAL_CHANGE
-- Provide specific details about what changed
 - If sections are identical, note as "NO_DIFFERENCE"
 - If a section is missing in one document, note as "MISSING_IN_DOC1" or "MISSING_IN_DOC2"
+- Provide a brief description of what changed without including the actual content
 
 For each difference found, provide:
-1. Section name
-2. Difference type (ADDED/REMOVED/MODIFIED/STRUCTURAL_CHANGE/NO_DIFFERENCE/MISSING)
-3. Description of the difference
-4. Content from Document 1 (if applicable)
-5. Content from Document 2 (if applicable)
-6. Impact level (HIGH/MEDIUM/LOW)"""
+1. Whether there is a mismatch or not
+2. Brief description of the difference type
+3. Do not include actual content from documents"""
 
         comparison_results = []
         
@@ -159,7 +174,7 @@ Document 1 ({doc1_name}):
 Document 2 ({doc2_name}):
 {doc2_content}
 
-Analyze and provide detailed comparison results."""
+Analyze and provide brief comparison results without including actual document content."""
 
             try:
                 messages = [
@@ -171,87 +186,68 @@ Analyze and provide detailed comparison results."""
                 
                 # Parse the comparison result
                 comparison_result = self._parse_comparison_response(
-                    response.content, section, doc1_content, doc2_content, doc1_name, doc2_name
+                    response.content, section, doc1_content, doc2_content, sample_number
                 )
                 comparison_results.append(comparison_result)
                 
             except Exception as e:
                 logger.error(f"Error comparing section {section}: {str(e)}")
                 comparison_results.append({
-                    'Section': section,
-                    'Difference_Type': 'ERROR',
-                    'Description': f'Error during comparison: {str(e)}',
-                    'Document_1_Content': doc1_content[:500] + "..." if len(doc1_content) > 500 else doc1_content,
-                    'Document_2_Content': doc2_content[:500] + "..." if len(doc2_content) > 500 else doc2_content,
-                    'Impact_Level': 'UNKNOWN',
-                    'Document_1_Name': doc1_name,
-                    'Document_2_Name': doc2_name
+                    'Samples affected': f"Sample {sample_number}",
+                    'Observation - Category': 'Error during comparison',
+                    'Page': section,
+                    'Sub-category of Observation': f'Error: {str(e)}'
                 })
         
         return comparison_results
     
     def _parse_comparison_response(self, response_content: str, section: str, doc1_content: str, 
-                             doc2_content: str, doc1_name: str, doc2_name: str) -> Dict:
+                             doc2_content: str, sample_number: str) -> Dict:
         """Parse LLM comparison response into structured format."""
     
-        # Extract key information from the response
-        difference_type = "MODIFIED"  # Default
-        impact_level = "MEDIUM"  # Default
-    
-        # Simple parsing logic - can be enhanced
+        # Determine if there's a mismatch
+        has_mismatch = True
+        observation_category = "Mismatch of content between Filed Copy and customer copy"
+        
         if "NO_DIFFERENCE" in response_content.upper() or "IDENTICAL" in response_content.upper():
-            difference_type = "NO_DIFFERENCE"
-            impact_level = "LOW"
-        elif "MISSING" in response_content.upper():
-            if doc1_content == "NOT FOUND":
-                difference_type = "MISSING_IN_DOC1"
-            elif doc2_content == "NOT FOUND":
-                difference_type = "MISSING_IN_DOC2"
-            impact_level = "HIGH"
-        elif "ADDED" in response_content.upper():
-            difference_type = "ADDED"
-            impact_level = "MEDIUM"
-        elif "REMOVED" in response_content.upper():
-            difference_type = "REMOVED"
-            impact_level = "MEDIUM"
-    
-        # Determine impact level
-        if "HIGH" in response_content.upper():
-            impact_level = "HIGH"
-        elif "LOW" in response_content.upper():
-            impact_level = "LOW"
-    
-    # Helper function to format content with first 1000 words and last 100 words
-        def format_content(content: str) -> str:
-            if content == "NOT FOUND" or len(content) <= 1000:
-                return content
+            has_mismatch = False
+            observation_category = "No differences found"
+        elif doc1_content == "NOT FOUND" or doc2_content == "NOT FOUND":
+            observation_category = "Missing section in one document"
         
-            words = content.split()
-            if len(words) <= 1000:
-                return content
-        
-            first_1000_words = ' '.join(words[:1000])
-            last_100_words = ' '.join(words[-100:])
-        
-            return f"{first_1000_words}\n\n... [CONTENT TRUNCATED] ...\n\n{last_100_words}"
-    
-        return {
-            'Section': section,
-            'Difference_Type': difference_type,
-            'Description': response_content.strip(),
-            'Document_1_Content': format_content(doc1_content),
-            'Document_2_Content': format_content(doc2_content),
-            'Impact_Level': impact_level,
-            'Document_1_Name': doc1_name,
-            'Document_2_Name': doc2_name,
-            'Comparison_Date': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Map sections to appropriate sub-categories
+        section_mapping = {
+            "FORWARDING LETTER": "Forwarding letter",
+            "PREAMBLE": "Preamble", 
+            "SCHEDULE": "Schedule",
+            "DEFINITIONS & ABBREVIATIONS": "Definitions and Abbreviations"
         }
+        
+        sub_category = section_mapping.get(section, section.title())
+        
+        # Only include entries where there are differences
+        if has_mismatch:
+            return {
+                'Samples affected': f"Sample {sample_number}",
+                'Observation - Category': observation_category,
+                'Page': sub_category,
+                'Sub-category of Observation': sub_category
+            }
+        else:
+            return None  # Return None for no differences
     
     def create_excel_report(self, comparison_results: List[Dict], doc1_name: str, doc2_name: str) -> bytes:
         """Create Excel report from comparison results."""
         
+        # Filter out None results (no differences)
+        filtered_results = [r for r in comparison_results if r is not None]
+        
         # Create DataFrame
-        df = pd.DataFrame(comparison_results)
+        df = pd.DataFrame(filtered_results)
+        
+        # Reorder columns to match your format
+        if not df.empty:
+            df = df[['Samples affected', 'Observation - Category', 'Page', 'Sub-category of Observation']]
         
         # Create Excel file in memory
         output = io.BytesIO()
@@ -265,33 +261,21 @@ Analyze and provide detailed comparison results."""
                 'Metric': [
                     'Total Sections Compared',
                     'Sections with Differences',
-                    'Sections with No Differences',
-                    'High Impact Changes',
-                    'Medium Impact Changes',
-                    'Low Impact Changes',
-                    'Missing Sections'
+                    'Document 1 Name',
+                    'Document 2 Name',
+                    'Comparison Date'
                 ],
-                'Count': [
-                    len(comparison_results),
-                    len([r for r in comparison_results if r['Difference_Type'] != 'NO_DIFFERENCE']),
-                    len([r for r in comparison_results if r['Difference_Type'] == 'NO_DIFFERENCE']),
-                    len([r for r in comparison_results if r['Impact_Level'] == 'HIGH']),
-                    len([r for r in comparison_results if r['Impact_Level'] == 'MEDIUM']),
-                    len([r for r in comparison_results if r['Impact_Level'] == 'LOW']),
-                    len([r for r in comparison_results if 'MISSING' in r['Difference_Type']])
+                'Value': [
+                    len(self.target_sections),
+                    len(filtered_results),
+                    doc1_name,
+                    doc2_name,
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 ]
             }
             
             summary_df = pd.DataFrame(summary_data)
             summary_df.to_excel(writer, sheet_name='Summary', index=False)
-            
-            # Document info sheet
-            doc_info = pd.DataFrame({
-                'Document': [doc1_name, doc2_name],
-                'Comparison_Date': [datetime.now().strftime("%Y-%m-%d %H:%M:%S")] * 2,
-                'Sections_Analyzed': [', '.join(self.target_sections)] * 2
-            })
-            doc_info.to_excel(writer, sheet_name='Document_Info', index=False)
         
         output.seek(0)
         return output.getvalue()
@@ -339,13 +323,13 @@ def main():
         st.markdown("• Forwarding Letter")
         st.markdown("• Preamble")
         st.markdown("• Schedule")
-        st.markdown("• DEFINITIONS & ABBREVIATIONS")
+        st.markdown("• Definitions & Abbreviations")
     
     # Main interface
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("📄 Document 1")
+        st.subheader("📄 Document 1 (Filed Copy)")
         doc1_file = st.file_uploader(
             "Upload first PDF document",
             type=['pdf'],
@@ -356,7 +340,7 @@ def main():
             st.success(f"✅ {doc1_file.name} uploaded successfully")
     
     with col2:
-        st.subheader("📄 Document 2")
+        st.subheader("📄 Document 2 (Customer Copy)")
         doc2_file = st.file_uploader(
             "Upload second PDF document",
             type=['pdf'],
@@ -395,6 +379,9 @@ def main():
                     st.error("❌ Failed to extract text from one or both documents")
                     return
                 
+                # Extract sample number from document 2
+                sample_number = comparer.extract_sample_number(doc2_text)
+                
                 # Filter sections using LLM
                 st.info("🤖 Filtering sections using AI...")
                 doc1_sections = comparer.filter_sections_with_llm(doc1_text, doc1_file.name)
@@ -403,7 +390,7 @@ def main():
                 # Compare documents using LLM
                 st.info("🔍 Comparing documents using AI...")
                 comparison_results = comparer.compare_documents_with_llm(
-                    doc1_sections, doc2_sections, doc1_file.name, doc2_file.name
+                    doc1_sections, doc2_sections, doc1_file.name, doc2_file.name, sample_number
                 )
                 
                 # Create Excel report
@@ -417,36 +404,35 @@ def main():
             # Display results
             st.subheader("📊 Comparison Results")
             
+            # Filter out None results for display
+            display_results = [r for r in comparison_results if r is not None]
+            
             # Summary metrics
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3 = st.columns(3)
             
             with col1:
-                total_sections = len(comparison_results)
-                st.metric("Total Sections", total_sections)
+                st.metric("Total Sections Compared", len(comparer.target_sections))
             
             with col2:
-                differences = len([r for r in comparison_results if r['Difference_Type'] != 'NO_DIFFERENCE'])
-                st.metric("Sections with Differences", differences)
+                st.metric("Sections with Differences", len(display_results))
             
             with col3:
-                high_impact = len([r for r in comparison_results if r['Impact_Level'] == 'HIGH'])
-                st.metric("High Impact Changes", high_impact)
-            
-            with col4:
-                missing_sections = len([r for r in comparison_results if 'MISSING' in r['Difference_Type']])
-                st.metric("Missing Sections", missing_sections)
+                st.metric("Sample Number", sample_number)
             
             # Detailed results table
-            st.subheader("📋 Detailed Comparison")
-            df_display = pd.DataFrame(comparison_results)
-            st.dataframe(df_display, use_container_width=True)
+            if display_results:
+                st.subheader("📋 Detailed Comparison")
+                df_display = pd.DataFrame(display_results)
+                st.dataframe(df_display, use_container_width=True)
+            else:
+                st.info("✅ No differences found between the documents!")
             
             # Download Excel report
             st.subheader("📥 Download Report")
             st.download_button(
                 label="📊 Download Excel Report",
                 data=excel_data,
-                file_name=f"document_comparison_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                file_name=f"document_comparison_{sample_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
             
