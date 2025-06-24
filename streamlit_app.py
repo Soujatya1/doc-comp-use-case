@@ -64,13 +64,13 @@ class DocumentComparer:
 Target sections and instructions:
 
 1. FORWARDING LETTER:
-   - Start marker: Look for sentences like "Sub: Issuance of Policy..."
-   - End marker: "Disclaimer: In case of dispute, English version of Policy bond shall be final and binding."
+   - Start marker: Look for sentences like "Sub: Issuance of Policy..." or similar.
+   - End marker: Look for sentences like "Disclaimer: In case of dispute, English version of Policy bond shall be final and binding." or similar.
    - Extract all content between these markers, inclusive.
 
 2. PREAMBLE:
-   - Start marker: "The Company has received a Proposal Form."
-   - End marker: "incorporated herein and forms the basis of this Policy."
+   - Start marker: Look for sentences that indicate the company has received a proposal, like "The Company has received a Proposal Form" or similar.
+   - End marker: Look for sentences like "incorporated herein and forms the basis of this Policy." or similar.
    - Extract all content between these markers, inclusive.
 
 3. SCHEDULE:
