@@ -139,10 +139,16 @@ Extract the sections and return as JSON format:
         return sections
     
     def compare_documents_with_llm(self, doc1_sections: Dict[str, str], doc2_sections: Dict[str, str], 
-                                 doc1_name: str, doc2_name: str, sample_number: str) -> List[Dict]:
-        """Use LLM to intelligently compare document sections and create results for ALL sections."""
-        
-        system_prompt = """You are a document comparison expert. Your goal is to analyze the following two versions of the same section and do the following:
+                               doc1_name: str, doc2_name: str, sample_number: str) -> List[Dict]:
+    """Use LLM to intelligently compare document sections and create results for ALL sections."""
+    
+        comparison_results = []
+
+        for section in self.target_sections:
+            doc1_content = doc1_sections.get(section, "NOT FOUND")
+            doc2_content = doc2_sections.get(section, "NOT FOUND")
+
+            system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and do the following:
 
 Step 1: Understand and summarize the core content of each section separately.
 
@@ -168,32 +174,33 @@ Document 1 ({doc1_name}) - Filed Copy:
 Document 2 ({doc2_name}) - Customer Copy:
 {doc2_content}
 
-Respond only with your comparison as per steps 1 to 3. If no meaningful content differences are found, clearly respond: "NO_CONTENT_DIFFERENCE"."""
+Respond only with your comparison as per steps 1 to 3. If no meaningful content differences are found, clearly respond: "NO_CONTENT_DIFFERENCE".
+"""
 
-        try:
-            messages = [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=user_prompt)
-            ]
-                
-            response = self.llm.invoke(messages)
-                
-            # Create result for this section (regardless of differences)
-            comparison_result = self._create_section_result(
-                response.content, section, doc1_content, doc2_content, sample_number
-            )
-            comparison_results.append(comparison_result)
-                
-        except Exception as e:
-            logger.error(f"Error comparing section {section}: {str(e)}")
-            comparison_results.append({
-                'Samples affected': sample_number,
-                'Observation - Category': 'Mismatch of content between Filed Copy and customer copy',
-                'Page': self._get_page_name(section),
-                'Sub-category of Observation': f'Error during comparison: {str(e)}',
-                'Content': f"Filed Copy: {doc1_content[:500]}{'...' if len(doc1_content) > 500 else ''}\n\nCustomer Copy: {doc2_content[:500]}{'...' if len(doc2_content) > 500 else ''}"
-            })
-        
+            try:
+                messages = [
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content="Please provide your analysis.")
+                ]
+
+                response = self.llm.invoke(messages)
+
+                comparison_result = self._create_section_result(
+                    response.content, section, doc1_content, doc2_content, sample_number
+                )
+                comparison_results.append(comparison_result)
+
+            except Exception as e:
+                logger.error(f"Error comparing section {section}: {str(e)}")
+                comparison_results.append({
+                    'Samples affected': sample_number,
+                    'Observation - Category': 'Mismatch of content between Filed Copy and customer copy',
+                    'Page': self._get_page_name(section),
+                    'Sub-category of Observation': f'Error during comparison: {str(e)}',
+                    'Content': f"Filed Copy: {doc1_content[:500]}{'...' if len(doc1_content) > 500 else ''}\n\n"
+                           f"Customer Copy: {doc2_content[:500]}{'...' if len(doc2_content) > 500 else ''}"
+                })
+
         return comparison_results
     
     def _get_page_name(self, section: str) -> str:
