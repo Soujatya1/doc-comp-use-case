@@ -69,7 +69,7 @@ class DocumentComparer:
         sections = {}
 
         # Forwarding Letter
-        fl_start = re.search(r"Sub:\s*Issuance of the Policy.*?dated.*?\.", text, re.IGNORECASE | re.DOTALL)
+        fl_start = re.search(r"Sub:\s*Issuance of Policy.*?dated.*?\.", text, re.IGNORECASE | re.DOTALL)
         fl_end = re.search(r"Disclaimer: In case of dispute, English version of Policy bond shall be final and binding\.", text, re.IGNORECASE)
     
         if fl_start and fl_end:
@@ -79,7 +79,7 @@ class DocumentComparer:
         else:
             sections["FORWARDING LETTER"] = "NOT FOUND"
 
-        pr_start = re.search(r"The Company has received a Proposal Form, declaration and the first Regular Premium from the Policyholder / Life Assured as named in this Schedule\.", text, re.IGNORECASE | re.DOTALL)
+        pr_start = re.search(r"The Company has received a Proposal Form\.", text, re.IGNORECASE | re.DOTALL)
         pr_end = re.search(r"incorporated herein and forms the basis of this Policy\.", text, re.IGNORECASE)
     
         # Preamble
