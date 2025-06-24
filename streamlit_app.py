@@ -150,12 +150,10 @@ Instructions:
 - Focus on meaningful differences, not minor formatting variations
 - If sections are identical, note as "NO_DIFFERENCE"
 - If a section is missing in one document, note as "MISSING_IN_DOC1" or "MISSING_IN_DOC2"
-- Provide a brief description of what changed without including the actual content
+- Provide a concise but descriptive summary of what specifically changed, added, or removed
+- Be specific about the nature of differences (e.g., "Date changed from X to Y", "Clause added about Z", "Amount modified", etc.)
 
-For each difference found, provide:
-1. Whether there is a mismatch or not
-2. Brief description of the difference type
-3. Do not include actual content from documents"""
+For each difference found, provide a brief but informative description of the specific changes."""
 
         comparison_results = []
         
@@ -168,13 +166,13 @@ For each difference found, provide:
 
 Section: {section}
 
-Document 1 ({doc1_name}):
+Document 1 ({doc1_name}) - Filed Copy:
 {doc1_content}
 
-Document 2 ({doc2_name}):
+Document 2 ({doc2_name}) - Customer Copy:
 {doc2_content}
 
-Analyze and provide brief comparison results without including actual document content."""
+Analyze and provide a specific description of differences found. Focus on what exactly changed, was added, or was removed. If no meaningful differences exist, respond with "NO_DIFFERENCE"."""
 
             try:
                 messages = [
@@ -188,64 +186,102 @@ Analyze and provide brief comparison results without including actual document c
                 comparison_result = self._parse_comparison_response(
                     response.content, section, doc1_content, doc2_content, sample_number
                 )
-                comparison_results.append(comparison_result)
+                if comparison_result:
+                    comparison_results.append(comparison_result)
                 
             except Exception as e:
                 logger.error(f"Error comparing section {section}: {str(e)}")
                 comparison_results.append({
-                    'Samples affected': f"Sample {sample_number}",
-                    'Observation - Category': 'Error during comparison',
-                    'Page': section,
-                    'Sub-category of Observation': f'Error: {str(e)}'
+                    'Samples affected': sample_number,
+                    'Observation - Category': 'Mismatch of content between Filed Copy and customer copy',
+                    'Page': self._get_page_name(section),
+                    'Sub-category of Observation': f'Error during comparison: {str(e)}'
                 })
         
         return comparison_results
     
-    def _parse_comparison_response(self, response_content: str, section: str, doc1_content: str, 
-                             doc2_content: str, sample_number: str) -> Dict:
-        """Parse LLM comparison response into structured format."""
-    
-        # Determine if there's a mismatch
-        has_mismatch = True
-        observation_category = "Mismatch of content between Filed Copy and customer copy"
-        
-        if "NO_DIFFERENCE" in response_content.upper() or "IDENTICAL" in response_content.upper():
-            has_mismatch = False
-            observation_category = "No differences found"
-        elif doc1_content == "NOT FOUND" or doc2_content == "NOT FOUND":
-            observation_category = "Missing section in one document"
-        
-        # Map sections to appropriate sub-categories
+    def _get_page_name(self, section: str) -> str:
+        """Map sections to appropriate page names as shown in the image."""
         section_mapping = {
             "FORWARDING LETTER": "Forwarding letter",
             "PREAMBLE": "Preamble", 
             "SCHEDULE": "Schedule",
             "DEFINITIONS & ABBREVIATIONS": "Definitions and Abbreviations"
         }
-        
-        sub_category = section_mapping.get(section, section.title())
-        
-        # Only include entries where there are differences
-        if has_mismatch:
-            return {
-                'Samples affected': f"Sample {sample_number}",
-                'Observation - Category': observation_category,
-                'Page': sub_category,
-                'Sub-category of Observation': sub_category
-            }
-        else:
+        return section_mapping.get(section, section.title())
+    
+    def _parse_comparison_response(self, response_content: str, section: str, doc1_content: str, 
+                             doc2_content: str, sample_number: str) -> Dict:
+        """Parse LLM comparison response into structured format."""
+    
+        # Check if there are no differences
+        if ("NO_DIFFERENCE" in response_content.upper() or 
+            "IDENTICAL" in response_content.upper() or
+            "NO MEANINGFUL DIFFERENCES" in response_content.upper()):
             return None  # Return None for no differences
+        
+        # Check for missing sections
+        if doc1_content == "NOT FOUND" and doc2_content == "NOT FOUND":
+            return {
+                'Samples affected': sample_number,
+                'Observation - Category': 'Mismatch of content between Filed Copy and customer copy',
+                'Page': self._get_page_name(section),
+                'Sub-category of Observation': 'Section not found in both documents'
+            }
+        elif doc1_content == "NOT FOUND":
+            return {
+                'Samples affected': sample_number,
+                'Observation - Category': 'Mismatch of content between Filed Copy and customer copy',
+                'Page': self._get_page_name(section),
+                'Sub-category of Observation': 'Section missing in Filed Copy'
+            }
+        elif doc2_content == "NOT FOUND":
+            return {
+                'Samples affected': sample_number,
+                'Observation - Category': 'Mismatch of content between Filed Copy and customer copy',
+                'Page': self._get_page_name(section),
+                'Sub-category of Observation': 'Section missing in Customer Copy'
+            }
+        
+        # Clean up the LLM response to use as sub-category
+        sub_category = response_content.strip()
+        
+        # Remove common prefixes that might be added by LLM
+        prefixes_to_remove = [
+            "Differences found:",
+            "The differences are:",
+            "Key differences:",
+            "Analysis shows:",
+            "Comparison reveals:",
+            "The following differences were identified:"
+        ]
+        
+        for prefix in prefixes_to_remove:
+            if sub_category.upper().startswith(prefix.upper()):
+                sub_category = sub_category[len(prefix):].strip()
+        
+        # Limit length and ensure it's informative
+        if len(sub_category) > 200:
+            sub_category = sub_category[:197] + "..."
+        
+        # If the response is too generic, provide a more specific description
+        if len(sub_category) < 10 or sub_category.lower() in ["differences found", "content differs", "changes detected"]:
+            sub_category = f"Content differences identified in {self._get_page_name(section)} section"
+        
+        return {
+            'Samples affected': sample_number,
+            'Observation - Category': 'Mismatch of content between Filed Copy and customer copy',
+            'Page': self._get_page_name(section),
+            'Sub-category of Observation': sub_category
+        }
     
     def create_excel_report(self, comparison_results: List[Dict], doc1_name: str, doc2_name: str) -> bytes:
         """Create Excel report from comparison results."""
         
-        # Filter out None results (no differences)
-        filtered_results = [r for r in comparison_results if r is not None]
-        
         # Create DataFrame
-        df = pd.DataFrame(filtered_results)
+        df = pd.DataFrame(comparison_results)
         
-        # Reorder columns to match your format
+        # Reorder columns to match the required format
         if not df.empty:
             df = df[['Samples affected', 'Observation - Category', 'Page', 'Sub-category of Observation']]
         
@@ -261,13 +297,13 @@ Analyze and provide brief comparison results without including actual document c
                 'Metric': [
                     'Total Sections Compared',
                     'Sections with Differences',
-                    'Document 1 Name',
-                    'Document 2 Name',
+                    'Document 1 Name (Filed Copy)',
+                    'Document 2 Name (Customer Copy)',
                     'Comparison Date'
                 ],
                 'Value': [
                     len(self.target_sections),
-                    len(filtered_results),
+                    len(comparison_results),
                     doc1_name,
                     doc2_name,
                     datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -379,7 +415,7 @@ def main():
                     st.error("❌ Failed to extract text from one or both documents")
                     return
                 
-                # Extract sample number from document 2
+                # Extract sample number from document 2 (Customer Copy)
                 sample_number = comparer.extract_sample_number(doc2_text)
                 
                 # Filter sections using LLM
@@ -404,9 +440,6 @@ def main():
             # Display results
             st.subheader("📊 Comparison Results")
             
-            # Filter out None results for display
-            display_results = [r for r in comparison_results if r is not None]
-            
             # Summary metrics
             col1, col2, col3 = st.columns(3)
             
@@ -414,15 +447,15 @@ def main():
                 st.metric("Total Sections Compared", len(comparer.target_sections))
             
             with col2:
-                st.metric("Sections with Differences", len(display_results))
+                st.metric("Sections with Differences", len(comparison_results))
             
             with col3:
                 st.metric("Sample Number", sample_number)
             
             # Detailed results table
-            if display_results:
+            if comparison_results:
                 st.subheader("📋 Detailed Comparison")
-                df_display = pd.DataFrame(display_results)
+                df_display = pd.DataFrame(comparison_results)
                 st.dataframe(df_display, use_container_width=True)
             else:
                 st.info("✅ No differences found between the documents!")
