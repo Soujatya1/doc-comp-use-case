@@ -107,6 +107,7 @@ Extract the sections and return as JSON format:
                 SystemMessage(content=system_prompt),
                 HumanMessage(content=user_prompt)
             ]
+            st.write(f"Sending to LLM (Filed Copy: {doc_name}):\n{user_prompt[:2000]}")
             response = self.llm.invoke(messages)
             json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
             if json_match:
