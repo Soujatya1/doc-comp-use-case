@@ -3,3 +3,4 @@ langchain-openai
 PyPDF2
 pandas
 openpyxl
+langchain
