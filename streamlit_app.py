@@ -58,10 +58,7 @@ Target sections to extract:
 1. FORWARDING LETTER
 2. PREAMBLE
 3. SCHEDULE
-4. Terms and Coniditions
-5. Ombudsman Page
-6. Annexure 1
-7. Annexure AA
+4. DEFINITIONS & ABBREVIATIONS
 
 Instructions:
 - Identify and extract ONLY the content from these sections
@@ -84,10 +81,7 @@ Extract the sections and return as JSON format:
     "FORWARDING LETTER": "extracted content or NOT FOUND",
     "PREAMBLE": "extracted content or NOT FOUND", 
     "SCHEDULE": "extracted content or NOT FOUND",
-    "Terms and Conditions": "extracted content or NOT FOUND",
-    "Ombudsman Page": "extracted content or NOT FOUND",
-    "Annexure 1": "extracted content or NOT FOUND",
-    "Annexure AA": "extracted content or NOT FOUND"
+    "DEFINITIONS & ABBREVIATIONS": "extracted content or NOT FOUND"
 }}"""
 
         try:
@@ -149,7 +143,6 @@ For each difference found, provide:
 3. Description of the difference
 4. Content from Document 1 (if applicable)
 5. Content from Document 2 (if applicable)
-6. Impact level (HIGH/MEDIUM/LOW)"""
 
         comparison_results = []
         
@@ -236,10 +229,8 @@ Analyze and provide detailed comparison results."""
             'Description': response_content.strip(),
             'Document_1_Content': doc1_content[:1000] + "..." if len(doc1_content) > 1000 else doc1_content,
             'Document_2_Content': doc2_content[:1000] + "..." if len(doc2_content) > 1000 else doc2_content,
-            'Impact_Level': impact_level,
             'Document_1_Name': doc1_name,
             'Document_2_Name': doc2_name,
-            'Comparison_Date': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
     
     def create_excel_report(self, comparison_results: List[Dict], doc1_name: str, doc2_name: str) -> bytes:
@@ -261,18 +252,12 @@ Analyze and provide detailed comparison results."""
                     'Total Sections Compared',
                     'Sections with Differences',
                     'Sections with No Differences',
-                    'High Impact Changes',
-                    'Medium Impact Changes',
-                    'Low Impact Changes',
                     'Missing Sections'
                 ],
                 'Count': [
                     len(comparison_results),
                     len([r for r in comparison_results if r['Difference_Type'] != 'NO_DIFFERENCE']),
                     len([r for r in comparison_results if r['Difference_Type'] == 'NO_DIFFERENCE']),
-                    len([r for r in comparison_results if r['Impact_Level'] == 'HIGH']),
-                    len([r for r in comparison_results if r['Impact_Level'] == 'MEDIUM']),
-                    len([r for r in comparison_results if r['Impact_Level'] == 'LOW']),
                     len([r for r in comparison_results if 'MISSING' in r['Difference_Type']])
                 ]
             }
@@ -334,10 +319,7 @@ def main():
         st.markdown("• Forwarding Letter")
         st.markdown("• Preamble")
         st.markdown("• Schedule")
-        st.markdown("• Terms and Conditions")
-        st.markdown("• Ombudsman Page")
-        st.markdown("• Annexure 1")
-        st.markdown("• Annexure AA")
+        st.markdown("• DEFINITIONS & ABBREVIATIONS")
     
     # Main interface
     col1, col2 = st.columns(2)
