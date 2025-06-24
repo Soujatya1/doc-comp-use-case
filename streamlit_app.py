@@ -140,18 +140,29 @@ Extract the sections and return as JSON format:
     
     def compare_documents_with_llm(self, doc1_sections: Dict[str, str], doc2_sections: Dict[str, str], 
                                  doc1_name: str, doc2_name: str, sample_number: str) -> List[Dict]:
-        """Use LLM to intelligently compare document sections and find differences."""
+        """Use LLM to intelligently compare document sections and find meaningful content differences only."""
         
-        system_prompt = """You are an expert document comparison analyst. Your task is to intelligently compare corresponding sections from two documents and identify meaningful differences.
+        system_prompt = """You are an expert document comparison analyst focused on identifying meaningful content differences. Your task is to compare corresponding sections from two documents and identify ONLY substantive content differences.
 
-Instructions:
-- Compare each section between the two documents
-- Identify content differences, additions, deletions, and modifications
-- Focus on meaningful differences, not minor formatting variations
-- Provide a concise but descriptive summary of what specifically changed, added, or removed
-- Be specific about the nature of differences (e.g., "Date changed from X to Y", "Clause added about Z", "Amount modified", etc.)
+IGNORE the following types of differences:
+- Minor formatting variations (spacing, indentation, line breaks)
+- Structural or layout changes
+- Font differences or text styling
+- Order/sequence changes where content is identical
+- Punctuation variations that don't change meaning
+- Case differences (uppercase vs lowercase) that don't affect meaning
 
-For each difference found, provide a brief but informative description of the specific changes."""
+FOCUS ONLY on these types of meaningful differences:
+- Different dates, numbers, amounts, or percentages
+- Missing or additional text content
+- Changed names, addresses, or contact information
+- Modified clauses, terms, or conditions
+- Different policy numbers, reference numbers, or identifiers
+- Altered product names, descriptions, or specifications
+- Changed legal language or contractual terms
+- Missing or additional clauses/paragraphs with substantive content
+
+For each meaningful difference found, provide a specific description of what content changed, was added, or was removed. Focus on the actual information that differs, not how it's presented."""
 
         comparison_results = []
         
@@ -160,7 +171,7 @@ For each difference found, provide a brief but informative description of the sp
             doc1_content = doc1_sections.get(section_key, "NOT FOUND")
             doc2_content = doc2_sections.get(section_key, "NOT FOUND")
             
-            user_prompt = f"""Compare the following section between two documents:
+            user_prompt = f"""Compare the following section between two documents and identify ONLY meaningful content differences:
 
 Section: {section}
 
@@ -170,7 +181,14 @@ Document 1 ({doc1_name}) - Filed Copy:
 Document 2 ({doc2_name}) - Customer Copy:
 {doc2_content}
 
-Analyze and provide a specific description of differences found. Focus on what exactly changed, was added, or was removed. If no meaningful differences exist, respond with "NO_DIFFERENCE"."""
+Analyze and provide a specific description of meaningful content differences found. Focus on:
+- What specific information (dates, numbers, names, terms) changed
+- What text content was added or removed
+- What clauses or conditions were modified
+
+IGNORE formatting, structural, or presentation differences.
+
+If no meaningful content differences exist, respond with "NO_CONTENT_DIFFERENCE"."""
 
             try:
                 messages = [
@@ -209,13 +227,35 @@ Analyze and provide a specific description of differences found. Focus on what e
     
     def _parse_comparison_response(self, response_content: str, section: str, doc1_content: str, 
                              doc2_content: str, sample_number: str) -> Dict:
-        """Parse LLM comparison response into structured format."""
+        """Parse LLM comparison response into structured format, focusing on content differences only."""
     
-        # Check if there are no differences
-        if ("NO_DIFFERENCE" in response_content.upper() or 
-            "IDENTICAL" in response_content.upper() or
-            "NO MEANINGFUL DIFFERENCES" in response_content.upper()):
-            return None  # Return None for no differences
+        # Check if there are no meaningful content differences
+        no_diff_indicators = [
+            "NO_CONTENT_DIFFERENCE",
+            "NO MEANINGFUL CONTENT DIFFERENCES",
+            "NO SUBSTANTIVE DIFFERENCES",
+            "CONTENT IS IDENTICAL",
+            "NO CONTENT CHANGES",
+            "SAME CONTENT",
+            "IDENTICAL CONTENT"
+        ]
+        
+        response_upper = response_content.upper()
+        if any(indicator in response_upper for indicator in no_diff_indicators):
+            return None  # Return None for no meaningful content differences
+        
+        # Also check for responses that only mention formatting/structural differences
+        formatting_only_indicators = [
+            "ONLY FORMATTING DIFFERENCES",
+            "ONLY STRUCTURAL DIFFERENCES", 
+            "ONLY LAYOUT DIFFERENCES",
+            "SAME CONTENT, DIFFERENT FORMAT",
+            "FORMATTING VARIATIONS ONLY",
+            "STRUCTURAL CHANGES ONLY"
+        ]
+        
+        if any(indicator in response_upper for indicator in formatting_only_indicators):
+            return None  # Ignore formatting-only differences
         
         # Check for missing sections
         if doc1_content == "NOT FOUND" and doc2_content == "NOT FOUND":
@@ -245,12 +285,15 @@ Analyze and provide a specific description of differences found. Focus on what e
         
         # Remove common prefixes that might be added by LLM
         prefixes_to_remove = [
-            "Differences found:",
-            "The differences are:",
-            "Key differences:",
-            "Analysis shows:",
-            "Comparison reveals:",
-            "The following differences were identified:"
+            "Meaningful differences found:",
+            "Content differences identified:",
+            "The following content differences were found:",
+            "Key content differences:",
+            "Analysis shows the following content changes:",
+            "Comparison reveals content differences:",
+            "The following meaningful content differences were identified:",
+            "Content analysis reveals:",
+            "Substantive differences:"
         ]
         
         for prefix in prefixes_to_remove:
@@ -262,8 +305,13 @@ Analyze and provide a specific description of differences found. Focus on what e
             sub_category = sub_category[:197] + "..."
         
         # If the response is too generic, provide a more specific description
-        if len(sub_category) < 10 or sub_category.lower() in ["differences found", "content differs", "changes detected"]:
-            sub_category = f"Content differences identified in {self._get_page_name(section)} section"
+        generic_responses = [
+            "differences found", "content differs", "changes detected",
+            "variations identified", "discrepancies found"
+        ]
+        
+        if len(sub_category) < 15 or sub_category.lower() in generic_responses:
+            sub_category = f"Meaningful content differences identified in {self._get_page_name(section)} section"
         
         return {
             'Samples affected': sample_number,
@@ -293,17 +341,19 @@ Analyze and provide a specific description of differences found. Focus on what e
             summary_data = {
                 'Metric': [
                     'Total Sections Compared',
-                    'Sections with Differences',
+                    'Sections with Content Differences',
                     'Document 1 Name (Filed Copy)',
                     'Document 2 Name (Customer Copy)',
-                    'Comparison Date'
+                    'Comparison Date',
+                    'Analysis Type'
                 ],
                 'Value': [
                     len(self.target_sections),
                     len(comparison_results),
                     doc1_name,
                     doc2_name,
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    'Content-Only Differences (Ignoring Structural Changes)'
                 ]
             }
             
@@ -315,13 +365,13 @@ Analyze and provide a specific description of differences found. Focus on what e
 
 def main():
     st.set_page_config(
-        page_title="Intelligent Document Comparer",
+        page_title="Content-Focused Document Comparer",
         page_icon="📄",
         layout="wide"
     )
     
-    st.title("📄 Intelligent Document Comparer")
-    st.markdown("Upload two PDF documents to compare specific sections using AI-powered analysis")
+    st.title("📄 Content-Focused Document Comparer")
+    st.markdown("Upload two PDF documents to compare specific sections focusing on **meaningful content differences only** (ignoring structural/formatting changes)")
     
     # Sidebar for Azure OpenAI configuration
     with st.sidebar:
@@ -357,6 +407,14 @@ def main():
         st.markdown("• Preamble")
         st.markdown("• Schedule")
         st.markdown("• Definitions & Abbreviations")
+        
+        st.markdown("---")
+        st.markdown("**Focus Areas:**")
+        st.markdown("✅ Content differences")
+        st.markdown("✅ Missing/additional text")
+        st.markdown("✅ Changed values/dates")
+        st.markdown("❌ Formatting changes")
+        st.markdown("❌ Structural differences")
     
     # Main interface
     col1, col2 = st.columns(2)
@@ -384,7 +442,7 @@ def main():
             st.success(f"✅ {doc2_file.name} uploaded successfully")
     
     # Process documents
-    if st.button("🔍 Compare Documents", type="primary"):
+    if st.button("🔍 Compare Documents (Content Only)", type="primary"):
         if not all([azure_endpoint, api_key, deployment_name]):
             st.error("❌ Please provide all Azure OpenAI configuration details")
             return
@@ -420,8 +478,8 @@ def main():
                 doc1_sections = comparer.filter_sections_with_llm(doc1_text, doc1_file.name)
                 doc2_sections = comparer.filter_sections_with_llm(doc2_text, doc2_file.name)
                 
-                # Compare documents using LLM
-                st.info("🔍 Comparing documents using AI...")
+                # Compare documents using LLM (content-focused)
+                st.info("🔍 Comparing document content using AI...")
                 comparison_results = comparer.compare_documents_with_llm(
                     doc1_sections, doc2_sections, doc1_file.name, doc2_file.name, sample_number
                 )
@@ -432,7 +490,7 @@ def main():
                     comparison_results, doc1_file.name, doc2_file.name
                 )
             
-            st.success("✅ Document comparison completed successfully!")
+            st.success("✅ Content-focused document comparison completed successfully!")
             
             # Display results
             st.subheader("📊 Comparison Results")
@@ -444,25 +502,27 @@ def main():
                 st.metric("Total Sections Compared", len(comparer.target_sections))
             
             with col2:
-                st.metric("Sections with Differences", len(comparison_results))
+                st.metric("Sections with Content Differences", len(comparison_results))
             
             with col3:
                 st.metric("Sample Number", sample_number)
             
             # Detailed results table
             if comparison_results:
-                st.subheader("📋 Detailed Comparison")
+                st.subheader("📋 Detailed Content Differences")
                 df_display = pd.DataFrame(comparison_results)
                 st.dataframe(df_display, use_container_width=True)
+                
+                st.info("ℹ️ **Note**: Only meaningful content differences are shown. Formatting and structural changes are ignored.")
             else:
-                st.info("✅ No differences found between the documents!")
+                st.info("✅ No meaningful content differences found between the documents!")
             
             # Download Excel report
             st.subheader("📥 Download Report")
             st.download_button(
-                label="📊 Download Excel Report",
+                label="📊 Download Content Differences Report",
                 data=excel_data,
-                file_name=f"document_comparison_{sample_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                file_name=f"content_comparison_{sample_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
             
