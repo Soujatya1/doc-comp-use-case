@@ -46,6 +46,39 @@ class DocumentComparer:
             logger.error(f"Error extracting text from PDF: {str(e)}")
             return ""
     
+    def truncate_content_smart(self, content: str, first_words: int = 500, last_words: int = 100) -> str:
+        """
+        Truncate content to show first N words and last M words with separator.
+        
+        Args:
+            content: The text content to truncate
+            first_words: Number of words to show from the beginning
+            last_words: Number of words to show from the end
+            
+        Returns:
+            Truncated content string
+        """
+        if content in ["NOT FOUND", ""]:
+            return content
+            
+        words = content.split()
+        total_words = len(words)
+        
+        # If content is short enough, return as is
+        if total_words <= (first_words + last_words):
+            return content
+        
+        # Get first N words
+        first_part = " ".join(words[:first_words])
+        
+        # Get last M words
+        last_part = " ".join(words[-last_words:])
+        
+        # Combine with separator
+        truncated = f"{first_part}\n\n... [CONTENT TRUNCATED - {total_words - first_words - last_words} words omitted] ...\n\n{last_part}"
+        
+        return truncated
+    
     def filter_sections_with_llm(self, document_text: str, doc_name: str) -> Dict[str, str]:
         """Use LLM to filter and extract specific sections from document."""
         
@@ -181,8 +214,8 @@ Analyze and provide detailed comparison results."""
                     'Section': section,
                     'Difference_Type': 'ERROR',
                     'Description': f'Error during comparison: {str(e)}',
-                    'Document_1_Content': doc1_content[:500] + "..." if len(doc1_content) > 500 else doc1_content,
-                    'Document_2_Content': doc2_content[:500] + "..." if len(doc2_content) > 500 else doc2_content,
+                    'Document_1_Content': self.truncate_content_smart(doc1_content),
+                    'Document_2_Content': self.truncate_content_smart(doc2_content),
                     'Impact_Level': 'UNKNOWN',
                     'Document_1_Name': doc1_name,
                     'Document_2_Name': doc2_name
@@ -225,8 +258,8 @@ Analyze and provide detailed comparison results."""
             'Section': section,
             'Difference_Type': difference_type,
             'Description': response_content.strip(),
-            'Document_1_Content': doc1_content[:1000] + "..." if len(doc1_content) > 1000 else doc1_content,
-            'Document_2_Content': doc2_content[:1000] + "..." if len(doc2_content) > 1000 else doc2_content,
+            'Document_1_Content': self.truncate_content_smart(doc1_content, first_words=500, last_words=100),
+            'Document_2_Content': self.truncate_content_smart(doc2_content, first_words=500, last_words=100),
             'Impact_Level': impact_level,
             'Document_1_Name': doc1_name,
             'Document_2_Name': doc2_name,
@@ -325,7 +358,13 @@ def main():
         st.markdown("• Forwarding Letter")
         st.markdown("• Preamble")
         st.markdown("• Schedule")
-        st.markdown("• DEFINITIONS & ABBREVIATIONS")
+        st.markdown("• Definitions & Abbreviations")
+        
+        st.markdown("---")
+        st.markdown("**Content Display:**")
+        st.markdown("• First 500 words")
+        st.markdown("• Last 100 words")
+        st.markdown("• Content truncation indicator")
     
     # Main interface
     col1, col2 = st.columns(2)
