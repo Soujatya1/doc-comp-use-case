@@ -146,10 +146,8 @@ Extract the sections and return as JSON format:
 
 Instructions:
 - Compare each section between the two documents
-- Identify content differences, structural changes, additions, deletions, and modifications
+- Identify content differences, additions, deletions, and modifications
 - Focus on meaningful differences, not minor formatting variations
-- If sections are identical, note as "NO_DIFFERENCE"
-- If a section is missing in one document, note as "MISSING_IN_DOC1" or "MISSING_IN_DOC2"
 - Provide a concise but descriptive summary of what specifically changed, added, or removed
 - Be specific about the nature of differences (e.g., "Date changed from X to Y", "Clause added about Z", "Amount modified", etc.)
 
@@ -201,7 +199,6 @@ Analyze and provide a specific description of differences found. Focus on what e
         return comparison_results
     
     def _get_page_name(self, section: str) -> str:
-        """Map sections to appropriate page names as shown in the image."""
         section_mapping = {
             "FORWARDING LETTER": "Forwarding letter",
             "PREAMBLE": "Preamble", 
