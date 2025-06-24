@@ -101,12 +101,13 @@ Extract the sections and return as JSON format:
   \"DEFINITIONS & ABBREVIATIONS\": \"extracted content or NOT FOUND\"
 }}
 """
-        logger.info(f"Sending to LLM (Filed Copy: {doc_name}):\n{user_prompt[:2000]}")
+        
         try:
             messages = [
                 SystemMessage(content=system_prompt),
                 HumanMessage(content=user_prompt)
             ]
+            logger.info(f"Sending to LLM (Filed Copy: {doc_name}):\n{user_prompt[:2000]}")
             response = self.llm.invoke(messages)
             json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
             if json_match:
