@@ -31,8 +31,10 @@ class DocumentComparer:
             "FORWARDING LETTER",
             "PREAMBLE", 
             "SCHEDULE",
-            "DEFINITIONS & ABBREVIATIONS",
-            "B DEFINITIONS & ABBREVIATIONS"
+            "Terms and Conditions",
+            "Ombudsman Page",
+            "Annexure 1",
+            "Annexure AA"
         ]
     
     def extract_text_from_pdf(self, pdf_file) -> str:
@@ -56,7 +58,10 @@ Target sections to extract:
 1. FORWARDING LETTER
 2. PREAMBLE
 3. SCHEDULE
-4. DEFINITIONS & ABBREVIATIONS (or B DEFINITIONS & ABBREVIATIONS)
+4. Terms and Coniditions
+5. Ombudsman Page
+6. Annexure 1
+7. Annexure AA
 
 Instructions:
 - Identify and extract ONLY the content from these sections
@@ -79,7 +84,10 @@ Extract the sections and return as JSON format:
     "FORWARDING LETTER": "extracted content or NOT FOUND",
     "PREAMBLE": "extracted content or NOT FOUND", 
     "SCHEDULE": "extracted content or NOT FOUND",
-    "DEFINITIONS & ABBREVIATIONS": "extracted content or NOT FOUND"
+    "Terms and Conditions": "extracted content or NOT FOUND",
+    "Ombudsman Page": "extracted content or NOT FOUND",
+    "Annexure 1": "extracted content or NOT FOUND",
+    "Annexure AA": "extracted content or NOT FOUND"
 }}"""
 
         try:
@@ -326,7 +334,10 @@ def main():
         st.markdown("• Forwarding Letter")
         st.markdown("• Preamble")
         st.markdown("• Schedule")
-        st.markdown("• Definitions & Abbreviations")
+        st.markdown("• Terms and Conditions")
+        st.markdown("• Ombudsman Page")
+        st.markdown("• Annexure 1")
+        st.markdown("• Annexure AA")
     
     # Main interface
     col1, col2 = st.columns(2)
