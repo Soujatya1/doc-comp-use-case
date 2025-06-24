@@ -194,7 +194,7 @@ Respond only with your comparison as per steps 1 to 3. If no meaningful content 
                 'Content': f"Filed Copy: {doc1_content[:500]}{'...' if len(doc1_content) > 500 else ''}\n\nCustomer Copy: {doc2_content[:500]}{'...' if len(doc2_content) > 500 else ''}"
             })
         
-    return comparison_results
+        return comparison_results
     
     def _get_page_name(self, section: str) -> str:
         section_mapping = {
