@@ -182,10 +182,14 @@ Step 3: Present a structured, **point-wise list** of the meaningful differences,
 
 Section Name: {section}
 
-Document 1 ({doc1_name}) - Filed Copy:
+Compare the two documents as:
+- Filed Copy = {doc1_name}
+- Customer Copy = {doc2_name}
+
+Filed Copy:
 {doc1_content}
 
-Document 2 ({doc2_name}) - Customer Copy:
+Customer Copy:
 {doc2_content}
 
 Respond only with the final response after understanding and following the above steps. If no meaningful content differences are found, clearly respond: "NO_CONTENT_DIFFERENCE".
