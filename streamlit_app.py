@@ -160,7 +160,7 @@ Step 2: Identify all *meaningful content differences* between them, focusing onl
 - Textual changes
 - Modifications, additions and deletions
 
-IGNORE differences in formatting, punctuation, line breaks, or case changes.
+IGNORE differences in formatting, punctuation, line breaks, numbering or case changes.
 
 Step 3: Present a structured, **point-wise list** of the meaningful differences, e.g.:
 1. Date changed from 'X' in Document 1 to 'Y' in Document 2.
