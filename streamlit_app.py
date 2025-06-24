@@ -432,7 +432,7 @@ Respond only with the final response after understanding and following the above
                     
                     # Set column width with reasonable limits
                     if column_letter == 'D':  # Sub-category of Observation column
-                        adjusted_width = min(max_length + 2, 80)
+                        adjusted_width = min(max_length + 2, 800)
                     elif column_letter == 'E':  # Content column
                         adjusted_width = min(max_length + 2, 120)  # Wider for content
                     else:
