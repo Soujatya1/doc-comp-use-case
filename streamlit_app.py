@@ -71,10 +71,7 @@ class DocumentComparer:
         system_prompt = """You are an expert document analyzer. Your task is to extract specific sections from legal/business documents.
 
 Target sections to extract:
-1. FORWARDING LETTER: Starts with "<Name of the Policyholder>
-<Address of the Policyholder>
-Dear <Mr./Mrs./Ms.><Name of the Policyholder>
-Sub: Issuance of the Policy under application for the life insurance Policy dated <XXX>." and ends with "Disclaimer: In case of dispute, English version of Policy bond shall be final and binding."
+1. FORWARDING LETTER: Starts with "Sub: Issuance of the Policy under application for the life insurance Policy dated <XXX>." and ends with "Disclaimer: In case of dispute, English version of Policy bond shall be final and binding."
 2. PREAMBLE: Starts with "The Company has received a Proposal Form, declaration and the first Regular Premium from the Policyholder / Life Assured as named in this Schedule." and ends with "incorporated herein and forms the basis of this Policy."
 3. SCHEDULE
 4. DEFINITIONS & ABBREVIATIONS
