@@ -15,6 +15,34 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def extract_fixed_sections(self, text: str) -> Dict[str, str]:
+    sections = {}
+
+    # Forwarding Letter
+    fl_start = re.search(r"Sub:\s*Issuance of the Policy.*?dated.*?\.", text, re.IGNORECASE | re.DOTALL)
+    fl_end = re.search(r"Disclaimer: In case of dispute, English version of Policy bond shall be final and binding\.", text, re.IGNORECASE)
+    
+    if fl_start and fl_end:
+        start_idx = fl_start.start()
+        end_idx = fl_end.end()
+        sections["FORWARDING LETTER"] = f"<<START_FORWARDING_LETTER>>\n{text[start_idx:end_idx]}\n<<END_FORWARDING_LETTER>>"
+    else:
+        sections["FORWARDING LETTER"] = "NOT FOUND"
+
+    pr_start = re.search(r"The Company has received a Proposal Form, declaration and the first Regular Premium from the Policyholder / Life Assured as named in this Schedule\.", text, re.IGNORECASE | re.DOTALL)
+    pr_end = re.search(r"incorporated herein and forms the basis of this Policy\.", text, re.IGNORECASE)
+    
+    # Preamble
+    if pr_start and pr_end:
+        start_idx = pr_start.start()
+        end_idx = pr_end.end()
+        sections["PREAMBLE"] = f"<<START_PREAMBLE>>\n{text[start_idx:end_idx]}\n<<END_PREAMBLE>>"
+    else:
+        sections["PREAMBLE"] = "NOT FOUND"
+
+    return sections
+
+
 class DocumentComparer:
     def __init__(self, azure_endpoint: str, api_key: str, api_version: str, deployment_name: str):
         """Initialize the document comparer with Azure OpenAI configuration."""
@@ -66,11 +94,16 @@ class DocumentComparer:
         return "001"
     
     def filter_sections_with_llm(self, document_text: str, doc_name: str) -> Dict[str, str]:
-        """Use LLM to filter and extract specific sections from document."""
-        
+        # Step 1: Extract Forwarding Letter & Preamble manually
+        fixed_sections = self.extract_fixed_sections(document_text)
+
+        # Step 2: Use LLM for remaining sections only
+        llm_target_sections = [
+            s for s in self.target_sections if s not in ["FORWARDING LETTER", "PREAMBLE"]
+        ]        
         system_prompt = """You are an expert document analyzer. Your task is to extract specific sections from legal/business documents.
 
-Target sections to extract:
+Target sections to extract which have headers as mentioned:
 1. FORWARDING LETTER: Starts with "Sub: Issuance of the Policy under application for the life insurance Policy dated <XXX>." and ends with "Disclaimer: In case of dispute, English version of Policy bond shall be final and binding."
 2. PREAMBLE
 3. SCHEDULE
@@ -112,6 +145,7 @@ Extract the sections and return as JSON format:
             json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
             if json_match:
                 sections_dict = json.loads(json_match.group())
+                sections_dict.update(fixed_sections)
                 return sections_dict
             else:
                 logger.warning("Could not parse JSON from LLM response")
