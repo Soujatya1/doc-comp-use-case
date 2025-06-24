@@ -313,43 +313,43 @@ Respond only with your comparison as per steps 1 to 3. If no meaningful content 
     
     def _parse_difference_description(self, response_content: str, section: str) -> str:
         """Parse LLM response to extract difference description."""
-        
-        # Clean up the LLM response to use as sub-category
+
+    # Clean up the LLM response to use as sub-category
         sub_category = response_content.strip()
-        
-        # Remove common prefixes that might be added by LLM (case-insensitive)
+
+    # Remove common prefixes that might be added by LLM (case-insensitive)
         prefixes_to_remove = [
-            "Meaningful differences found:",
-            "Content differences identified:",
-            "The following content differences were found:",
-            "Key content differences:",
-            "Analysis shows the following content changes:",
-            "Comparison reveals content differences:",
-            "The following meaningful content differences were identified:",
-            "Content analysis reveals:",
-            "Substantive differences:",
-            "Differences found:",
-            "The differences are:",
-            "Key differences:",
-            "Analysis shows:",
-            "Comparison reveals:",
-            "The following differences were identified:"
+        "Meaningful differences found:",
+        "Content differences identified:",
+        "The following content differences were found:",
+        "Key content differences:",
+        "Analysis shows the following content changes:",
+        "Comparison reveals content differences:",
+        "The following meaningful content differences were identified:",
+        "Content analysis reveals:",
+        "Substantive differences:",
+        "Differences found:",
+        "The differences are:",
+        "Key differences:",
+        "Analysis shows:",
+        "Comparison reveals:",
+        "The following differences were identified:"
         ]
-        
+
         for prefix in prefixes_to_remove:
             if sub_category.upper().startswith(prefix.upper()):
                 sub_category = sub_category[len(prefix):].strip()
                 break
-        
-        # Clean up common suffixes and extra whitespace
+
+    # Clean up common suffixes and extra whitespace
         sub_category = re.sub(r'\s+', ' ', sub_category)
         sub_category = sub_category.strip('. \n\r\t')
-        
-        # Remove bullet points and numbering from the beginning
+
+    # Remove bullet points and numbering from the beginning
         sub_category = re.sub(r'^[-•*]\s*', '', sub_category)
         sub_category = re.sub(r'^\d+\.\s*', '', sub_category)
-        
-        # If response contains multiple lines, take the first meaningful line
+
+    # If response contains multiple lines, take the first meaningful line
         lines = [line.strip() for line in sub_category.split('\n') if line.strip()]
         if lines:
             for line in lines:
@@ -358,8 +358,8 @@ Respond only with your comparison as per steps 1 to 3. If no meaningful content 
                     break
             else:
                 sub_category = lines[0]
-        
-        # Truncate if too long
+
+    # Truncate if too long
         if len(sub_category) > 500:
             truncate_at = 497
             last_sentence_end = max(
@@ -371,16 +371,17 @@ Respond only with your comparison as per steps 1 to 3. If no meaningful content 
                 sub_category = sub_category[:last_sentence_end + 1]
             else:
                 sub_category = sub_category[:497] + "..."
-        
-        # Ensure it starts with uppercase
+
+    # Ensure it starts with uppercase
         if sub_category and len(sub_category) > 0:
             sub_category = sub_category[0].upper() + sub_category[1:]
-        
-        # Default if too generic or short
+
+    # Default if too generic or short
         if len(sub_category) < 10:
-            sub_category = f"Meaningful content differences identified in section"
-        
+            sub_category = f"Meaningful content differences identified in section {section}"
+
         return sub_category
+
     
     def create_excel_report(self, comparison_results: List[Dict], doc1_name: str, doc2_name: str) -> bytes:
         """Create Excel report from comparison results with proper formatting including Content column."""
