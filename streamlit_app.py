@@ -174,7 +174,7 @@ Document 1 ({doc1_name}) - Filed Copy:
 Document 2 ({doc2_name}) - Customer Copy:
 {doc2_content}
 
-Respond only with your comparison as per steps 1 to 3. If no meaningful content differences are found, clearly respond: "NO_CONTENT_DIFFERENCE".
+Respond only with the final response after understanding and following the above steps. If no meaningful content differences are found, clearly respond: "NO_CONTENT_DIFFERENCE".
 """
 
             try:
