@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 class DocumentComparer:
     def __init__(self, azure_endpoint: str, api_key: str, api_version: str, deployment_name: str):
-        """Initialize the document comparer with Azure OpenAI configuration."""
         self.llm = AzureChatOpenAI(
             azure_endpoint=azure_endpoint,
             api_key=api_key,
@@ -26,16 +25,15 @@ class DocumentComparer:
             temperature=0.1,
             max_tokens=4000
         )
-        
+
         self.target_sections = [
             "FORWARDING LETTER",
-            "PREAMBLE", 
+            "PREAMBLE",
             "SCHEDULE",
             "DEFINITIONS & ABBREVIATIONS"
         ]
-    
+
     def extract_text_from_pdf(self, pdf_file) -> str:
-        """Extract text from uploaded PDF file."""
         try:
             pdf_reader = PyPDF2.PdfReader(pdf_file)
             text = ""
@@ -45,75 +43,48 @@ class DocumentComparer:
         except Exception as e:
             logger.error(f"Error extracting text from PDF: {str(e)}")
             return ""
-    
+
     def extract_sample_number(self, document_text: str) -> str:
-        """Extract sample number from document text."""
-        # Common patterns for sample numbers
         patterns = [
             r'Sample\s*[#:]?\s*(\d+)',
             r'Sample\s+No\.?\s*(\d+)',
-            r'Sample\s+Number\s*[:]?\s*(\d+)',
+            r'Sample\s+Number\s*[:]?(\d+)',
             r'Doc\s*[#:]?\s*(\d+)',
             r'Document\s*[#:]?\s*(\d+)',
         ]
-        
         for pattern in patterns:
             match = re.search(pattern, document_text, re.IGNORECASE)
             if match:
                 return match.group(1)
-        
-        # If no pattern found, return default
         return "001"
-        
-    def extract_fixed_sections(self, text: str) -> Dict[str, str]:
-        sections = {}
 
-        # Forwarding Letter
-        fl_start = re.search(r"Sub:\s*Issuance of Policy.*?dated.*?\.", text, re.IGNORECASE | re.DOTALL)
-        fl_end = re.search(r"Disclaimer: In case of dispute, English version of Policy bond shall be final and binding\.", text, re.IGNORECASE)
-    
-        if fl_start and fl_end:
-            start_idx = fl_start.start()
-            end_idx = fl_end.end()
-            sections["FORWARDING LETTER"] = f"<<START_FORWARDING_LETTER>>\n{text[start_idx:end_idx]}\n<<END_FORWARDING_LETTER>>"
-        else:
-            sections["FORWARDING LETTER"] = "NOT FOUND"
-
-        pr_start = re.search(r"The Company has received a Proposal Form\.", text, re.IGNORECASE | re.DOTALL)
-        pr_end = re.search(r"incorporated herein and forms the basis of this Policy\.", text, re.IGNORECASE)
-    
-        # Preamble
-        if pr_start and pr_end:
-            start_idx = pr_start.start()
-            end_idx = pr_end.end()
-            sections["PREAMBLE"] = f"<<START_PREAMBLE>>\n{text[start_idx:end_idx]}\n<<END_PREAMBLE>>"
-        else:
-            sections["PREAMBLE"] = "NOT FOUND"
-
-        return sections
-    
     def filter_sections_with_llm(self, document_text: str, doc_name: str) -> Dict[str, str]:
-        # Step 1: Extract Forwarding Letter & Preamble manually
-        fixed_sections = self.extract_fixed_sections(document_text)
-
-        # Step 2: Use LLM for remaining sections only
-        llm_target_sections = [
-            s for s in self.target_sections if s not in ["FORWARDING LETTER", "PREAMBLE"]
-        ]        
         system_prompt = """You are an expert document analyzer. Your task is to extract specific sections from legal/business documents.
 
-Target sections to extract which have headers as mentioned:
-1. SCHEDULE
-2. DEFINITIONS & ABBREVIATIONS
+Target sections and instructions:
+
+1. FORWARDING LETTER:
+   - Start marker: Look for sentences like \"Sub: Issuance of Policy...\"
+   - End marker: \"Disclaimer: In case of dispute, English version of Policy bond shall be final and binding.\"
+   - Extract all content between these markers, inclusive.
+
+2. PREAMBLE:
+   - Start marker: \"The Company has received a Proposal Form.\"
+   - End marker: \"incorporated herein and forms the basis of this Policy.\"
+   - Extract all content between these markers, inclusive.
+
+3. SCHEDULE:
+   - Look for section header: \"SCHEDULE\"
+
+4. DEFINITIONS & ABBREVIATIONS:
+   - Look for section header: \"DEFINITIONS & ABBREVIATIONS\"
 
 Instructions:
-- Identify and extract ONLY the content from these sections
-- Include section headers in the extracted content
-- If a section is not found, return "NOT FOUND" for that section
-- Maintain the original formatting and structure
-- Be precise and extract complete sections without truncation
-
-Return the result as a JSON object with section names as keys and extracted content as values."""
+- Extract complete text for each section.
+- Include headers and start/end sentences in the extracted content.
+- Return \"NOT FOUND\" for any section not found.
+- Output the result as a JSON object with section names as keys.
+"""
 
         user_prompt = f"""Please analyze the following document and extract the target sections:
 
@@ -124,31 +95,28 @@ Document Content:
 
 Extract the sections and return as JSON format:
 {{
-    "SCHEDULE": "extracted content or NOT FOUND",
-    "DEFINITIONS & ABBREVIATIONS": "extracted content or NOT FOUND"
-}}"""
+  \"FORWARDING LETTER\": \"extracted content or NOT FOUND\",
+  \"PREAMBLE\": \"extracted content or NOT FOUND\",
+  \"SCHEDULE\": \"extracted content or NOT FOUND\",
+  \"DEFINITIONS & ABBREVIATIONS\": \"extracted content or NOT FOUND\"
+}}
+"""
 
         try:
             messages = [
                 SystemMessage(content=system_prompt),
                 HumanMessage(content=user_prompt)
             ]
-            
             response = self.llm.invoke(messages)
-            
-            # Parse JSON response
             json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
             if json_match:
-                sections_dict = json.loads(json_match.group())
-                sections_dict.update(fixed_sections)
-                return sections_dict
+                return json.loads(json_match.group())
             else:
                 logger.warning("Could not parse JSON from LLM response")
-                return self._fallback_section_extraction(document_text)
-                
+                return {}
         except Exception as e:
             logger.error(f"Error in LLM section filtering: {str(e)}")
-            return self._fallback_section_extraction(document_text)
+            return {}
     
     def _fallback_section_extraction(self, text: str) -> Dict[str, str]:
         """Fallback method for section extraction using regex."""
