@@ -268,7 +268,7 @@ Respond only with your comparison as per steps 1 to 3. If no meaningful content 
         # Determine observation category and sub-category
         if has_differences:
             # Parse the LLM response for meaningful differences
-            sub_category = self._parse_difference_description(response_content)
+            sub_category = self._parse_difference_description(response_content, section)
             observation_category = 'Mismatch of content between Filed Copy and customer copy'
         else:
             # No meaningful content differences
@@ -311,7 +311,7 @@ Respond only with your comparison as per steps 1 to 3. If no meaningful content 
         
         return "\n\n".join(result_parts)
     
-    def _parse_difference_description(self, response_content: str) -> str:
+    def _parse_difference_description(self, response_content: str, section: str) -> str:
         """Parse LLM response to extract difference description."""
         
         # Clean up the LLM response to use as sub-category
