@@ -64,8 +64,8 @@ class DocumentComparer:
 Target sections and instructions:
 
 1. FORWARDING LETTER:
-   - Look for the beginning of the document where a subject line like "Sub: ..." is mentioned — this usually starts the forwarding.
-   - Look for end phrases like "Disclaimer: ..." or a sentence signaling end of letter.
+   - Look for the beginning of the document where a subject line like "Sub: Issuance..." is mentioned — this usually starts the forwarding.
+   - Look for end phrases like "Disclaimer: In case of dispute, English version..." or a sentence signaling end of letter.
    - Extract everything in between, even if the wording differs slightly.
 
 2. PREAMBLE:
