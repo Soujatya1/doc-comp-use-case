@@ -64,20 +64,14 @@ class DocumentComparer:
 Target sections and instructions:
 
 1. FORWARDING LETTER:
-   - Typically found at the very beginning of the document.
-   - Start with a subject line or salutation (e.g., sentences that begin with or include "Sub:", "To", or "Dear").
-   - Ends with disclaimer-like text (e.g., a sentence containing "Disclaimer", or a note about policy binding, language preference, etc.).
-   - Extract all text between this region, even if wording or punctuation varies. Be flexible in interpreting intent and structure.
+   - Look for the beginning of the document where a subject line like "Sub: ..." is mentioned — this usually starts the forwarding.
+   - Look for end phrases like "Disclaimer: ..." or a sentence signaling end of letter.
+   - Extract everything in between, even if the wording differs slightly.
 
 2. PREAMBLE:
-   - Begins with a statement where the company acknowledges receipt of a proposal, application, or form — look for sentences like:
-     - "The Company has received a Proposal Form"
-     - "We have received your proposal" or any variation of this idea.
-   - Ends with a clause that states the proposal is the basis of the issued policy — look for phrases like:
-     - "forms the basis of this Policy"
-     - "incorporated herein"
-     - "this proposal shall form the basis of the contract"
-   - Extract all text from start to end, even if the exact words vary. Focus on semantic meaning.
+   - Identify paragraphs that describe the company accepting the proposal and issuing a policy.
+   - This typically starts with a sentence like "The Company has received a Proposal Form" or something similar.
+   - Ends around "forms the basis of this Policy", even if phrased differently.
 
 3. SCHEDULE:
    - Look for a section labeled "SCHEDULE" or similar — match approximate variants.
