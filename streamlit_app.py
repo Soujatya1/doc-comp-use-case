@@ -606,8 +606,8 @@ def main():
                 
                 # Filter sections using LLM
                 st.info("🤖 Filtering sections using AI...")
-                doc1_sections = comparer.filter_sections_with_llm(doc1_text, doc1_file.name)
-                doc2_sections = comparer.filter_sections_with_llm(doc2_text, doc2_file.name)
+                doc1_sections = comparer._fallback_section_extraction(doc1_text)
+                doc2_sections = comparer._fallback_section_extraction(doc2_text)
                 
                 # Compare documents using LLM (now includes all sections)
                 st.info("🔍 Analyzing all sections with content...")
