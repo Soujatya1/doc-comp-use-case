@@ -140,7 +140,7 @@ Extract the sections and return as JSON format:
     
     def compare_documents_with_llm(self, doc1_sections: Dict[str, str], doc2_sections: Dict[str, str], 
                                doc1_name: str, doc2_name: str, sample_number: str) -> List[Dict]:
-    """Use LLM to intelligently compare document sections and create results for ALL sections."""
+        """Use LLM to intelligently compare document sections and create results for ALL sections."""
     
         comparison_results = []
 
