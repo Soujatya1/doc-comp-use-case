@@ -64,26 +64,26 @@ class DocumentComparer:
 Target sections and instructions:
 
 1. FORWARDING LETTER:
-   - Start marker: Look for sentences like "Sub: Issuance of Policy..." or similar.
-   - End marker: Look for sentences like "Disclaimer: In case of dispute, English version of Policy bond shall be final and binding." or similar.
-   - Extract all content between these markers, inclusive.
+   - Look for the beginning of the document where a subject line like "Sub: ..." is mentioned — this usually starts the forwarding.
+   - Look for end phrases like "Disclaimer: ..." or a sentence signaling end of letter.
+   - Extract everything in between, even if the wording differs slightly.
 
 2. PREAMBLE:
-   - Start marker: Look for sentences that indicate the company has received a proposal, like "The Company has received a Proposal Form" or similar.
-   - End marker: Look for sentences like "incorporated herein and forms the basis of this Policy." or similar.
-   - Extract all content between these markers, inclusive.
+   - Identify paragraphs that describe the company accepting the proposal and issuing a policy.
+   - This typically starts with a sentence like "The Company has received a Proposal Form" or something similar.
+   - Ends around "forms the basis of this Policy", even if phrased differently.
 
 3. SCHEDULE:
-   - Look for section header: "SCHEDULE"
+   - Look for a section labeled "SCHEDULE" or similar — match approximate variants.
 
 4. DEFINITIONS & ABBREVIATIONS:
-   - Look for section header: "DEFINITIONS & ABBREVIATIONS"
+   - Locate section titled "DEFINITIONS", "ABBREVIATIONS", or similar — approximate matches are fine.
 
 Instructions:
-- Extract complete text for each section.
-- Include headers and start/end sentences in the extracted content.
-- Return \"NOT FOUND\" for any section not found.
-- Output the result as a JSON object with section names as keys.
+- Do not be strict with exact matching.
+- Case, small wording variations, or punctuation should not block detection.
+- Return full section text.
+- If nothing close is found, return "NOT FOUND".
 """
 
         user_prompt = f"""Please analyze the following document and extract the target sections:
