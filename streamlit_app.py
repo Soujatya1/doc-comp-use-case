@@ -283,7 +283,7 @@ If no meaningful content differences exist, respond with "NO_CONTENT_DIFFERENCE"
         # Clean up the LLM response to use as sub-category
         sub_category = response_content.strip()
         
-        # Remove common prefixes that might be added by LLM
+        # Remove common prefixes that might be added by LLM (case-insensitive)
         prefixes_to_remove = [
             "Meaningful differences found:",
             "Content differences identified:",
@@ -293,25 +293,67 @@ If no meaningful content differences exist, respond with "NO_CONTENT_DIFFERENCE"
             "Comparison reveals content differences:",
             "The following meaningful content differences were identified:",
             "Content analysis reveals:",
-            "Substantive differences:"
+            "Substantive differences:",
+            "Differences found:",
+            "The differences are:",
+            "Key differences:",
+            "Analysis shows:",
+            "Comparison reveals:",
+            "The following differences were identified:"
         ]
         
         for prefix in prefixes_to_remove:
             if sub_category.upper().startswith(prefix.upper()):
                 sub_category = sub_category[len(prefix):].strip()
+                break  # Exit after first match to avoid multiple removals
         
-        # Limit length and ensure it's informative
-        if len(sub_category) > 200:
-            sub_category = sub_category[:197] + "..."
+        # Clean up common suffixes and extra whitespace
+        sub_category = re.sub(r'\s+', ' ', sub_category)  # Replace multiple spaces with single space
+        sub_category = sub_category.strip('. \n\r\t')  # Remove trailing dots, spaces, newlines
         
-        # If the response is too generic, provide a more specific description
+        # Remove bullet points and numbering from the beginning
+        sub_category = re.sub(r'^[-•*]\s*', '', sub_category)  # Remove bullet points
+        sub_category = re.sub(r'^\d+\.\s*', '', sub_category)  # Remove numbering like "1. "
+        
+        # If response contains multiple lines, take the first meaningful line
+        lines = [line.strip() for line in sub_category.split('\n') if line.strip()]
+        if lines:
+            # Use the first substantial line (more than 10 characters)
+            for line in lines:
+                if len(line) > 10:
+                    sub_category = line
+                    break
+            else:
+                sub_category = lines[0]  # Fallback to first line if none are substantial
+        
+        # Increase length limit to capture more detail (was 200, now 500)
+        if len(sub_category) > 500:
+            # Find a good breaking point (sentence end) near the limit
+            truncate_at = 497
+            last_sentence_end = max(
+                sub_category.rfind('.', 0, truncate_at),
+                sub_category.rfind('!', 0, truncate_at),
+                sub_category.rfind('?', 0, truncate_at)
+            )
+            if last_sentence_end > 200:  # If we found a sentence end reasonably close
+                sub_category = sub_category[:last_sentence_end + 1]
+            else:
+                sub_category = sub_category[:497] + "..."
+        
+        # Enhanced check for generic responses
         generic_responses = [
             "differences found", "content differs", "changes detected",
-            "variations identified", "discrepancies found"
+            "variations identified", "discrepancies found", "differences exist",
+            "content mismatch", "text differs"
         ]
         
-        if len(sub_category) < 15 or sub_category.lower() in generic_responses:
+        # Only replace if it's very short AND generic
+        if len(sub_category) < 10 or sub_category.lower().strip() in generic_responses:
             sub_category = f"Meaningful content differences identified in {self._get_page_name(section)} section"
+        
+        # Final cleanup - ensure it doesn't start with lowercase (unless it's a continuation)
+        if sub_category and len(sub_category) > 0:
+            sub_category = sub_category[0].upper() + sub_category[1:]
         
         return {
             'Samples affected': sample_number,
@@ -321,7 +363,7 @@ If no meaningful content differences exist, respond with "NO_CONTENT_DIFFERENCE"
         }
     
     def create_excel_report(self, comparison_results: List[Dict], doc1_name: str, doc2_name: str) -> bytes:
-        """Create Excel report from comparison results."""
+        """Create Excel report from comparison results with proper formatting."""
         
         # Create DataFrame
         df = pd.DataFrame(comparison_results)
@@ -336,6 +378,41 @@ If no meaningful content differences exist, respond with "NO_CONTENT_DIFFERENCE"
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             # Main comparison sheet
             df.to_excel(writer, sheet_name='Document_Comparison', index=False)
+            
+            # Format the main sheet for better readability
+            if not df.empty:
+                workbook = writer.book
+                worksheet = writer.sheets['Document_Comparison']
+                
+                # Auto-adjust column widths
+                for column in worksheet.columns:
+                    max_length = 0
+                    column_letter = column[0].column_letter
+                    
+                    for cell in column:
+                        try:
+                            if cell.value:
+                                # Handle the Sub-category of Observation column specially
+                                if column_letter == 'D':  # Sub-category of Observation column
+                                    max_length = max(max_length, min(len(str(cell.value)), 100))
+                                else:
+                                    max_length = max(max_length, len(str(cell.value)))
+                        except:
+                            pass
+                    
+                    # Set column width with reasonable limits
+                    if column_letter == 'D':  # Sub-category of Observation column
+                        adjusted_width = min(max_length + 2, 100)  # Max width 100 for long descriptions
+                    else:
+                        adjusted_width = min(max_length + 2, 50)   # Max width 50 for other columns
+                    
+                    worksheet.column_dimensions[column_letter].width = adjusted_width
+                
+                # Enable text wrapping for all cells
+                from openpyxl.styles import Alignment
+                for row in worksheet.iter_rows():
+                    for cell in row:
+                        cell.alignment = Alignment(wrap_text=True, vertical='top')
             
             # Summary sheet
             summary_data = {
@@ -359,6 +436,27 @@ If no meaningful content differences exist, respond with "NO_CONTENT_DIFFERENCE"
             
             summary_df = pd.DataFrame(summary_data)
             summary_df.to_excel(writer, sheet_name='Summary', index=False)
+            
+            # Format summary sheet
+            summary_worksheet = writer.sheets['Summary']
+            for column in summary_worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                
+                for cell in column:
+                    try:
+                        if cell.value:
+                            max_length = max(max_length, len(str(cell.value)))
+                    except:
+                        pass
+                
+                adjusted_width = min(max_length + 2, 80)
+                summary_worksheet.column_dimensions[column_letter].width = adjusted_width
+            
+            # Enable text wrapping for summary sheet
+            for row in summary_worksheet.iter_rows():
+                for cell in row:
+                    cell.alignment = Alignment(wrap_text=True, vertical='top')
         
         output.seek(0)
         return output.getvalue()
