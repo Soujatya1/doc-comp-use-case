@@ -170,31 +170,31 @@ Document 2 ({doc2_name}) - Customer Copy:
 
 Respond only with your comparison as per steps 1 to 3. If no meaningful content differences are found, clearly respond: "NO_CONTENT_DIFFERENCE"."""
 
-            try:
-                messages = [
-                    SystemMessage(content=system_prompt),
-                    HumanMessage(content=user_prompt)
-                ]
+        try:
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt)
+            ]
                 
-                response = self.llm.invoke(messages)
+            response = self.llm.invoke(messages)
                 
-                # Create result for this section (regardless of differences)
-                comparison_result = self._create_section_result(
-                    response.content, section, doc1_content, doc2_content, sample_number
-                )
-                comparison_results.append(comparison_result)
+            # Create result for this section (regardless of differences)
+            comparison_result = self._create_section_result(
+                response.content, section, doc1_content, doc2_content, sample_number
+            )
+            comparison_results.append(comparison_result)
                 
-            except Exception as e:
-                logger.error(f"Error comparing section {section}: {str(e)}")
-                comparison_results.append({
-                    'Samples affected': sample_number,
-                    'Observation - Category': 'Mismatch of content between Filed Copy and customer copy',
-                    'Page': self._get_page_name(section),
-                    'Sub-category of Observation': f'Error during comparison: {str(e)}',
-                    'Content': f"Filed Copy: {doc1_content[:500]}{'...' if len(doc1_content) > 500 else ''}\n\nCustomer Copy: {doc2_content[:500]}{'...' if len(doc2_content) > 500 else ''}"
-                })
+        except Exception as e:
+            logger.error(f"Error comparing section {section}: {str(e)}")
+            comparison_results.append({
+                'Samples affected': sample_number,
+                'Observation - Category': 'Mismatch of content between Filed Copy and customer copy',
+                'Page': self._get_page_name(section),
+                'Sub-category of Observation': f'Error during comparison: {str(e)}',
+                'Content': f"Filed Copy: {doc1_content[:500]}{'...' if len(doc1_content) > 500 else ''}\n\nCustomer Copy: {doc2_content[:500]}{'...' if len(doc2_content) > 500 else ''}"
+            })
         
-        return comparison_results
+    return comparison_results
     
     def _get_page_name(self, section: str) -> str:
         section_mapping = {
