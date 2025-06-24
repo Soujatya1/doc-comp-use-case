@@ -71,7 +71,10 @@ class DocumentComparer:
         system_prompt = """You are an expert document analyzer. Your task is to extract specific sections from legal/business documents.
 
 Target sections to extract:
-1. FORWARDING LETTER: Starts with "Sub: issuance of the policy under application for the life insurance policy dated" and ends with "Disclaimer: In case of dispute, English version of Policy bond shall be final and binding."
+1. FORWARDING LETTER: Starts with "<Name of the Policyholder>
+<Address of the Policyholder>
+Dear <Mr./Mrs./Ms.><Name of the Policyholder>
+Sub: Issuance of the Policy under application for the life insurance Policy dated <XXX>." and ends with "Disclaimer: In case of dispute, English version of Policy bond shall be final and binding."
 2. PREAMBLE: Starts with "The Company has received a Proposal Form, declaration and the first Regular Premium from the Policyholder / Life Assured as named in this Schedule." and ends with "incorporated herein and forms the basis of this Policy."
 3. SCHEDULE
 4. DEFINITIONS & ABBREVIATIONS
@@ -150,14 +153,12 @@ Extract the sections and return as JSON format:
 
             system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and do the following:
 
-Step 1: Understand and summarize the core content of each section separately.
+Step 1: Understand each section separately.
 
 Step 2: Identify all *meaningful content differences* between them, focusing only on:
-- Different names, addresses, contact details
-- Changes in numbers, dates, percentages
-- Missing or additional sentences, clauses, or legal terms
-- Modified terms, conditions, or contractual language
-- Any altered product names, policy identifiers, or descriptions
+- Contextual changes
+- Textual changes
+- Modifications, additions and deletions
 
 IGNORE differences in formatting, punctuation, line breaks, or case changes.
 
