@@ -66,31 +66,31 @@ class DocumentComparer:
         return "001"
         
     def extract_fixed_sections(self, text: str) -> Dict[str, str]:
-    sections = {}
+        sections = {}
 
-    # Forwarding Letter
-    fl_start = re.search(r"Sub:\s*Issuance of the Policy.*?dated.*?\.", text, re.IGNORECASE | re.DOTALL)
-    fl_end = re.search(r"Disclaimer: In case of dispute, English version of Policy bond shall be final and binding\.", text, re.IGNORECASE)
+        # Forwarding Letter
+        fl_start = re.search(r"Sub:\s*Issuance of the Policy.*?dated.*?\.", text, re.IGNORECASE | re.DOTALL)
+        fl_end = re.search(r"Disclaimer: In case of dispute, English version of Policy bond shall be final and binding\.", text, re.IGNORECASE)
     
-    if fl_start and fl_end:
-        start_idx = fl_start.start()
-        end_idx = fl_end.end()
-        sections["FORWARDING LETTER"] = f"<<START_FORWARDING_LETTER>>\n{text[start_idx:end_idx]}\n<<END_FORWARDING_LETTER>>"
-    else:
-        sections["FORWARDING LETTER"] = "NOT FOUND"
+        if fl_start and fl_end:
+            start_idx = fl_start.start()
+            end_idx = fl_end.end()
+            sections["FORWARDING LETTER"] = f"<<START_FORWARDING_LETTER>>\n{text[start_idx:end_idx]}\n<<END_FORWARDING_LETTER>>"
+        else:
+            sections["FORWARDING LETTER"] = "NOT FOUND"
 
-    pr_start = re.search(r"The Company has received a Proposal Form, declaration and the first Regular Premium from the Policyholder / Life Assured as named in this Schedule\.", text, re.IGNORECASE | re.DOTALL)
-    pr_end = re.search(r"incorporated herein and forms the basis of this Policy\.", text, re.IGNORECASE)
+        pr_start = re.search(r"The Company has received a Proposal Form, declaration and the first Regular Premium from the Policyholder / Life Assured as named in this Schedule\.", text, re.IGNORECASE | re.DOTALL)
+        pr_end = re.search(r"incorporated herein and forms the basis of this Policy\.", text, re.IGNORECASE)
     
-    # Preamble
-    if pr_start and pr_end:
-        start_idx = pr_start.start()
-        end_idx = pr_end.end()
-        sections["PREAMBLE"] = f"<<START_PREAMBLE>>\n{text[start_idx:end_idx]}\n<<END_PREAMBLE>>"
-    else:
-        sections["PREAMBLE"] = "NOT FOUND"
+        # Preamble
+        if pr_start and pr_end:
+            start_idx = pr_start.start()
+            end_idx = pr_end.end()
+            sections["PREAMBLE"] = f"<<START_PREAMBLE>>\n{text[start_idx:end_idx]}\n<<END_PREAMBLE>>"
+        else:
+            sections["PREAMBLE"] = "NOT FOUND"
 
-    return sections
+        return sections
     
     def filter_sections_with_llm(self, document_text: str, doc_name: str) -> Dict[str, str]:
         # Step 1: Extract Forwarding Letter & Preamble manually
