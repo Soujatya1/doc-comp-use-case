@@ -142,38 +142,25 @@ Extract the sections and return as JSON format:
                                  doc1_name: str, doc2_name: str, sample_number: str) -> List[Dict]:
         """Use LLM to intelligently compare document sections and create results for ALL sections."""
         
-        system_prompt = """You are an expert document comparison analyst focused on identifying meaningful content differences. Your task is to compare corresponding sections from two documents and identify ONLY substantive content differences.
+        system_prompt = """You are a document comparison expert. Your goal is to analyze the following two versions of the same section and do the following:
 
-IGNORE the following types of differences:
-- Minor formatting variations (spacing, indentation, line breaks)
-- Structural or layout changes
-- Font differences or text styling
-- Order/sequence changes where content is identical
-- Punctuation variations that don't change meaning
-- Case differences (uppercase vs lowercase) that don't affect meaning
+Step 1: Understand and summarize the core content of each section separately.
 
-FOCUS ONLY on these types of meaningful differences:
-- Different dates, numbers, amounts, or percentages
-- Missing or additional text content
-- Changed names, addresses, or contact information
-- Modified clauses, terms, or conditions
-- Different policy numbers, reference numbers, or identifiers
-- Altered product names, descriptions, or specifications
-- Changed legal language or contractual terms
-- Missing or additional clauses/paragraphs with substantive content
+Step 2: Identify all *meaningful content differences* between them, focusing only on:
+- Different names, addresses, contact details
+- Changes in numbers, dates, percentages
+- Missing or additional sentences, clauses, or legal terms
+- Modified terms, conditions, or contractual language
+- Any altered product names, policy identifiers, or descriptions
 
-For each meaningful difference found, mention the same in a detailed way and point out the specific details as to whether what changed"""
+IGNORE differences in formatting, punctuation, line breaks, or case changes.
 
-        comparison_results = []
-        
-        for section in self.target_sections:
-            section_key = section.upper()
-            doc1_content = doc1_sections.get(section_key, "NOT FOUND")
-            doc2_content = doc2_sections.get(section_key, "NOT FOUND")
-            
-            user_prompt = f"""Compare the following section between two documents and identify ONLY meaningful content differences:
+Step 3: Present a structured, **point-wise list** of the meaningful differences, e.g.:
+1. Date changed from 'X' in Document 1 to 'Y' in Document 2.
+2. The clause about <topic> is present in Document 2 but missing in Document 1.
+3. Name changed from 'Mr. X' to 'Mr. Y'.
 
-Section: {section}
+Section Name: {section}
 
 Document 1 ({doc1_name}) - Filed Copy:
 {doc1_content}
@@ -181,14 +168,7 @@ Document 1 ({doc1_name}) - Filed Copy:
 Document 2 ({doc2_name}) - Customer Copy:
 {doc2_content}
 
-Analyze and provide a specific description of meaningful content differences found. Focus on:
-- What specific information (dates, numbers, names, terms) changed
-- What text content was added or removed
-- What clauses or conditions were modified
-
-IGNORE formatting, structural, or presentation differences.
-
-If no meaningful content differences exist, respond with "NO_CONTENT_DIFFERENCE"."""
+Respond only with your comparison as per steps 1 to 3. If no meaningful content differences are found, clearly respond: "NO_CONTENT_DIFFERENCE"."""
 
             try:
                 messages = [
