@@ -31,10 +31,7 @@ class DocumentComparer:
             "FORWARDING LETTER",
             "PREAMBLE", 
             "SCHEDULE",
-            "Terms and Conditions",
-            "Ombudsman Page",
-            "Annexure 1",
-            "Annexure AA"
+            "DEFINITIONS & ABBREVIATIONS"
         ]
     
     def extract_text_from_pdf(self, pdf_file) -> str:
@@ -143,6 +140,7 @@ For each difference found, provide:
 3. Description of the difference
 4. Content from Document 1 (if applicable)
 5. Content from Document 2 (if applicable)
+6. Impact level (HIGH/MEDIUM/LOW)"""
 
         comparison_results = []
         
@@ -229,8 +227,10 @@ Analyze and provide detailed comparison results."""
             'Description': response_content.strip(),
             'Document_1_Content': doc1_content[:1000] + "..." if len(doc1_content) > 1000 else doc1_content,
             'Document_2_Content': doc2_content[:1000] + "..." if len(doc2_content) > 1000 else doc2_content,
+            'Impact_Level': impact_level,
             'Document_1_Name': doc1_name,
             'Document_2_Name': doc2_name,
+            'Comparison_Date': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
     
     def create_excel_report(self, comparison_results: List[Dict], doc1_name: str, doc2_name: str) -> bytes:
@@ -252,12 +252,18 @@ Analyze and provide detailed comparison results."""
                     'Total Sections Compared',
                     'Sections with Differences',
                     'Sections with No Differences',
+                    'High Impact Changes',
+                    'Medium Impact Changes',
+                    'Low Impact Changes',
                     'Missing Sections'
                 ],
                 'Count': [
                     len(comparison_results),
                     len([r for r in comparison_results if r['Difference_Type'] != 'NO_DIFFERENCE']),
                     len([r for r in comparison_results if r['Difference_Type'] == 'NO_DIFFERENCE']),
+                    len([r for r in comparison_results if r['Impact_Level'] == 'HIGH']),
+                    len([r for r in comparison_results if r['Impact_Level'] == 'MEDIUM']),
+                    len([r for r in comparison_results if r['Impact_Level'] == 'LOW']),
                     len([r for r in comparison_results if 'MISSING' in r['Difference_Type']])
                 ]
             }
