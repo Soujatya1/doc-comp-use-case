@@ -651,7 +651,7 @@ def main():
                     return
                 
                 # Extract sample number from document 2 (Customer Copy)
-                sample_number = comparer.extract_sample_number_from_filename(doc2_text)
+                sample_number = comparer.extract_sample_number_from_filename(doc2_file.name)
                 
                 # Filter sections using LLM
                 st.info("🤖 Filtering sections using AI...")
