@@ -59,7 +59,7 @@ class DocumentComparer:
         return "001"
 
     def filter_sections_with_llm(self, document_text: str, doc_name: str) -> Dict[str, str]:
-        system_prompt = """You are an expert document analyzer. Your task is to extract specific sections from legal/business documents.
+        system_prompt = """You are an expert document analyzer. Your task is to extract specific sections from legal/business documents and return the results as valid JSON.
 
 Target sections and instructions:
 
@@ -83,55 +83,66 @@ Instructions:
 - Case, small wording variations, or punctuation should not block detection.
 - Return full section text.
 - If nothing close is found, return "NOT FOUND".
+- IMPORTANT: Return ONLY valid JSON, no explanations or additional text.
 """
 
-        user_prompt = f"""Please analyze the following document and extract the target sections:
+        user_prompt = f"""Analyze the following document and extract the target sections. Return ONLY valid JSON with no additional text or explanations.
 
 Document Name: {doc_name}
 
 Document Content:
 {document_text}
 
-Extract the sections and return as JSON format:
+Return as JSON format:
 {{
-  \"FORWARDING LETTER\": \"extracted content or NOT FOUND\",
-  \"PREAMBLE\": \"extracted content or NOT FOUND\",
-  \"SCHEDULE\": \"extracted content or NOT FOUND\",
-  \"DEFINITIONS & ABBREVIATIONS\": \"extracted content or NOT FOUND\"
+  "FORWARDING LETTER": "extracted content or NOT FOUND",
+  "PREAMBLE": "extracted content or NOT FOUND", 
+  "SCHEDULE": "extracted content or NOT FOUND",
+  "DEFINITIONS & ABBREVIATIONS": "extracted content or NOT FOUND"
 }}
 """
         
         try:
+            # Enable JSON mode for more reliable JSON responses
             llm_with_json = self.llm.bind(response_format={"type": "json_object"})
+            
             messages = [
                 SystemMessage(content=system_prompt),
                 HumanMessage(content=user_prompt)
             ]
             
             # Debug output with correct document name
-            st.write(f"Sending to LLM ({doc_name}):\n{user_prompt[:500]}...")
+            st.write(f"Sending to LLM ({doc_name}) with JSON mode enabled...")
             
-            # Make the LLM call
-            response = self.llm_with_json.invoke(messages)
+            # Make the LLM call with JSON mode
+            response = llm_with_json.invoke(messages)
             
             # Debug: Show response
-            st.write(f"LLM Response for {doc_name}: {response.content[:500]}...")
+            st.write(f"LLM Response for {doc_name}: {response.content[:800]}...")
             
-            # Try to extract JSON from response
-            json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
-            if json_match:
-                try:
-                    sections = json.loads(json_match.group())
-                    st.write(f"Successfully parsed sections for {doc_name}: {list(sections.keys())}")
-                    return sections
-                except json.JSONDecodeError as json_error:
-                    logger.error(f"JSON parsing error for {doc_name}: {str(json_error)}")
-                    st.error(f"JSON parsing failed for {doc_name}: {str(json_error)}")
+            # Try to parse the JSON response directly
+            try:
+                sections = json.loads(response.content)
+                st.write(f"Successfully parsed sections for {doc_name}: {list(sections.keys())}")
+                return sections
+            except json.JSONDecodeError as json_error:
+                logger.error(f"Direct JSON parsing failed for {doc_name}: {str(json_error)}")
+                
+                # Fallback: Try to extract JSON from response
+                json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
+                if json_match:
+                    try:
+                        sections = json.loads(json_match.group())
+                        st.write(f"Successfully parsed sections using regex for {doc_name}: {list(sections.keys())}")
+                        return sections
+                    except json.JSONDecodeError:
+                        logger.error(f"Regex JSON parsing also failed for {doc_name}")
+                        st.error(f"JSON parsing failed for {doc_name}, using fallback method")
+                        return self._fallback_section_extraction(document_text)
+                else:
+                    logger.warning(f"Could not find JSON in LLM response for {doc_name}")
+                    st.warning(f"No JSON found in response for {doc_name}, using fallback method")
                     return self._fallback_section_extraction(document_text)
-            else:
-                logger.warning(f"Could not find JSON in LLM response for {doc_name}")
-                st.warning(f"No JSON found in response for {doc_name}, using fallback method")
-                return self._fallback_section_extraction(document_text)
                 
         except Exception as e:
             logger.error(f"Error in LLM section filtering for {doc_name}: {str(e)}")
