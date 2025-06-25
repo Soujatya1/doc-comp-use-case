@@ -617,7 +617,6 @@ Respond only with the final response after understanding and following the above
                     'B': 35,  # Observation Category
                     'C': 20,  # Page
                     'D': 50,  # Sub-category
-                    'E': 80   # Content (limited width)
                 }
             
                 for col_letter, max_width in max_widths.items():
