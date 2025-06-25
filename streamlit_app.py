@@ -416,6 +416,7 @@ Step 2: Identify all *meaningful content differences* between them, focusing onl
 - Contextual changes
 - Textual changes
 - Modifications, additions and deletions
+- Ignore numbering or serialization differences
 
 IGNORE differences in formatting, punctuation, line breaks, numbering or case changes.
 
