@@ -78,23 +78,7 @@ Target sections and instructions:
 4. DEFINITIONS & ABBREVIATIONS:
    - Locate section titled "DEFINITIONS", "ABBREVIATIONS", or similar — approximate matches are fine.
 
-Example 1:
----Document Snippet---
-Sub: Insurance Policy Confirmation Letter
 
-We are pleased to confirm your policy...
-Disclaimer: This is an electronically generated letter...
-
-Extracted Section: FORWARDING LETTER
-
----
-
-Example 2:
----Document Snippet---
-The Company has received a duly filled Proposal Form...
-
-This forms the basis of this Policy...
-Extracted Section: PREAMBLE
 
 Instructions:
 - Do not be strict with exact matching.
