@@ -652,7 +652,11 @@ Respond only with the final response after understanding and following the above
                 
                 for row in worksheet.iter_rows():
                     for cell in row:
-                        if not cell.coordinate.startswith('B') or cell.row == 1:
+                        if cell.coordinate.startswith('B') and cell.row > 1:
+                            # Merged cells get center alignment with wrap
+                            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                        else:
+                            # All other cells get wrap with top alignment
                             cell.alignment = Alignment(wrap_text=True, vertical='top')
             
             sections_with_differences = len([r for r in comparison_results if 'Mismatch' in r.get('Observation - Category', '')])
