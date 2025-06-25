@@ -690,7 +690,7 @@ Respond only with the final response after understanding and following the above
                     merged_cell = worksheet[f'B{start_row}']
                     merged_cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             
-            # Optional: Auto-adjust column widths for better readability
+                # Optional: Auto-adjust column widths for better readability
                 for column in worksheet.columns:
                     max_length = 0
                     column_letter = column[0].column_letter
