@@ -11,7 +11,6 @@ from typing import Dict, List, Tuple
 import logging
 from datetime import datetime
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -45,14 +44,11 @@ class DocumentComparer:
             return ""
 
     def extract_sample_number_from_filename(self, filename: str) -> str:
-        """
-        Extract sample number specifically from filename.
-        For pattern like "0611173223__Sample_11_" -> returns "0611173223"
-        """
+
         patterns = [
-            r'(\d{10})__Sample_\d+_',  # Exactly 10 digits before __Sample_
-            r'(\d{8,})__Sample',       # 8 or more digits before __Sample
-            r'^(\d{8,})',              # First set of 8+ digits at start
+            r'(\d{10})__Sample_\d+_',
+            r'(\d{8,})__Sample',
+            r'^(\d{8,})',
         ]
     
         for pattern in patterns:
@@ -112,7 +108,12 @@ Extract the sections and return as JSON format:
                 SystemMessage(content=system_prompt),
                 HumanMessage(content=user_prompt)
             ]
-            st.write(f"Sending to LLM (Filed Copy: {doc_name}):\n{user_prompt[:2000]}")
+            st.write(f"Filed Copy text length: {len(doc1_text)}")
+            st.write(f"Customer Copy text length: {len(doc2_text)}")
+            st.write(f"Filed Copy first 500 chars: {doc1_text[:500]}")
+            st.write(f"Customer Copy first 500 chars: {doc2_text[:500]}")
+            st.write(f"Sending to LLM ({doc_name}):\n{user_prompt[:2000]}")
+            st.write(f"LLM Response for {doc_name}: {response.content[:500]}")
             response = self.llm.invoke(messages)
             json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
             if json_match:
