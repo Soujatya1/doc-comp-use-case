@@ -22,7 +22,7 @@ class DocumentComparer:
             api_version=api_version,
             deployment_name=deployment_name,
             temperature=0.1,
-            max_tokens=4000
+            max_tokens=35000
         )
 
         self.target_sections = [
