@@ -698,7 +698,7 @@ Respond only with the final response after understanding and following the above
                     for cell in column:
                         try:
                             if len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
+                                max_length = len(str(cell.value))
                         except:
                             pass
                 
