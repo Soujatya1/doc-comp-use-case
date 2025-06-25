@@ -100,7 +100,6 @@ Extract the sections and return as JSON format:
   \"DEFINITIONS & ABBREVIATIONS\": \"extracted content or NOT FOUND\"
 }}
 """
-    
         try:
             messages = [
                 SystemMessage(content=system_prompt),
