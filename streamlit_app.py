@@ -67,11 +67,10 @@ Target sections and instructions:
    - Look for the beginning of the document where a subject line like "Sub: Issuance..." is mentioned — this usually starts the forwarding.
    - Look for end phrases like "Disclaimer: In case of dispute, English version..." or a sentence signaling end of letter.
    - Extract everything in between, even if the wording differs slightly.
+   - Generally the first page
 
 2. PREAMBLE:
-   - Identify paragraphs that describe the company accepting the proposal and issuing a policy.
-   - This typically starts with a sentence like "The Company has received a Proposal Form" or something similar.
-   - Ends around "forms the basis of this Policy", even if phrased differently.
+   - Look for a section labeled "PREAMBLE" or similar — match approximate variants.
 
 3. SCHEDULE:
    - Look for a section labeled "SCHEDULE" or similar — match approximate variants.
