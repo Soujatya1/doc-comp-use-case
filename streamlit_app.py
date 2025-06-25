@@ -10,8 +10,8 @@ import re
 from typing import Dict, List, Tuple
 import logging
 from datetime import datetime
-from openpyxl.styles import Alignment, Font, PatternFill
 
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -78,23 +78,7 @@ Target sections and instructions:
 4. DEFINITIONS & ABBREVIATIONS:
    - Locate section titled "DEFINITIONS", "ABBREVIATIONS", or similar — approximate matches are fine.
 
-Example 1:
----Document Snippet---
-Sub: Insurance Policy Confirmation Letter
 
-We are pleased to confirm your policy...
-Disclaimer: This is an electronically generated letter...
-
-Extracted Section: FORWARDING LETTER
-
----
-
-Example 2:
----Document Snippet---
-The Company has received a duly filled Proposal Form...
-
-This forms the basis of this Policy...
-Extracted Section: PREAMBLE
 
 Instructions:
 - Do not be strict with exact matching.
@@ -137,6 +121,7 @@ Extract the sections and return as JSON format:
             return {}
     
     def _fallback_section_extraction(self, text: str) -> Dict[str, str]:
+        """Fallback method for section extraction using regex."""
         sections = {}
         text_upper = text.upper()
         
@@ -154,6 +139,7 @@ Extract the sections and return as JSON format:
     
     def compare_documents_with_llm(self, doc1_sections: Dict[str, str], doc2_sections: Dict[str, str], 
                                doc1_name: str, doc2_name: str, sample_number: str) -> List[Dict]:
+        """Use LLM to intelligently compare document sections and create results for ALL sections."""
     
         comparison_results = []
 
@@ -229,7 +215,9 @@ Respond only with the final response after understanding and following the above
     
     def _create_section_result(self, response_content: str, section: str, doc1_content: str, 
                              doc2_content: str, sample_number: str) -> Dict:
+        """Create result for each section, showing content regardless of differences."""
         
+        # Check if there are no meaningful content differences
         no_diff_indicators = [
             "NO_CONTENT_DIFFERENCE",
             "NO MEANINGFUL CONTENT DIFFERENCES",
@@ -243,6 +231,7 @@ Respond only with the final response after understanding and following the above
         response_upper = response_content.upper()
         has_differences = not any(indicator in response_upper for indicator in no_diff_indicators)
         
+        # Also check for responses that only mention formatting/structural differences
         formatting_only_indicators = [
             "ONLY FORMATTING DIFFERENCES",
             "ONLY STRUCTURAL DIFFERENCES", 
@@ -255,8 +244,10 @@ Respond only with the final response after understanding and following the above
         if any(indicator in response_upper for indicator in formatting_only_indicators):
             has_differences = False
         
+        # Prepare content for display
         content_display = self._prepare_content_display(doc1_content, doc2_content, section)
         
+        # Handle missing sections
         if doc1_content == "NOT FOUND" and doc2_content == "NOT FOUND":
             return {
                 'Samples affected': sample_number,
@@ -282,10 +273,13 @@ Respond only with the final response after understanding and following the above
                 'Content': content_display
             }
         
+        # Determine observation category and sub-category
         if has_differences:
+            # Parse the LLM response for meaningful differences
             sub_category = self._parse_difference_description(response_content, section)
             observation_category = 'Mismatch of content between Filed Copy and customer copy'
         else:
+            # No meaningful content differences
             sub_category = 'No meaningful content differences found'
             observation_category = 'Content matches between Filed Copy and customer copy'
         
@@ -298,13 +292,17 @@ Respond only with the final response after understanding and following the above
         }
     
     def _prepare_content_display(self, doc1_content: str, doc2_content: str, section: str) -> str:
+        """Prepare content display for the Content column."""
         
+        # If both contents are identical, show once
         if doc1_content == doc2_content and doc1_content != "NOT FOUND":
             content = doc1_content
+            # Truncate if too long for Excel display
             if len(content) > 1000:
                 content = content[:1000] + "... [Content truncated for display]"
             return f"[IDENTICAL CONTENT]\n{content}"
         
+        # If contents are different, show both
         result_parts = []
         
         if doc1_content != "NOT FOUND":
@@ -322,9 +320,12 @@ Respond only with the final response after understanding and following the above
         return "\n\n".join(result_parts)
     
     def _parse_difference_description(self, response_content: str, section: str) -> str:
+        """Parse LLM response to extract difference description."""
 
+    # Clean up the LLM response to use as sub-category
         sub_category = response_content.strip()
 
+    # Remove common prefixes that might be added by LLM (case-insensitive)
         prefixes_to_remove = [
         "Meaningful differences found:",
         "Content differences identified:",
@@ -348,12 +349,15 @@ Respond only with the final response after understanding and following the above
                 sub_category = sub_category[len(prefix):].strip()
                 break
 
+    # Clean up common suffixes and extra whitespace
         sub_category = re.sub(r'\s+', ' ', sub_category)
         sub_category = sub_category.strip('. \n\r\t')
 
+    # Remove bullet points and numbering from the beginning
         sub_category = re.sub(r'^[-•*]\s*', '', sub_category)
         sub_category = re.sub(r'^\d+\.\s*', '', sub_category)
 
+    # If response contains multiple lines, take the first meaningful line
         lines = [line.strip() for line in sub_category.split('\n') if line.strip()]
         if lines:
             for line in lines:
@@ -363,6 +367,7 @@ Respond only with the final response after understanding and following the above
             else:
                 sub_category = lines[0]
 
+    # Truncate if too long
         if len(sub_category) > 500:
             truncate_at = 497
             last_sentence_end = max(
@@ -375,9 +380,11 @@ Respond only with the final response after understanding and following the above
             else:
                 sub_category = sub_category[:497] + "..."
 
+    # Ensure it starts with uppercase
         if sub_category and len(sub_category) > 0:
             sub_category = sub_category[0].upper() + sub_category[1:]
 
+    # Default if too generic or short
         if len(sub_category) < 10:
             sub_category = f"Meaningful content differences identified in section {section}"
 
@@ -385,59 +392,68 @@ Respond only with the final response after understanding and following the above
 
     
     def create_excel_report(self, comparison_results: List[Dict], doc1_name: str, doc2_name: str) -> bytes:
+        """Create Excel report from comparison results with proper formatting including Content column and merged cells."""
         
+        # Create DataFrame
         df = pd.DataFrame(comparison_results)
         
+        # Reorder columns to include the new Content column
         if not df.empty:
             df = df[['Samples affected', 'Observation - Category', 'Page', 'Sub-category of Observation', 'Content']]
         
+        # Create Excel file in memory
         output = io.BytesIO()
         
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            # Main comparison sheet
             df.to_excel(writer, sheet_name='Document_Comparison', index=False)
             
+            # Format the main sheet for better readability
             if not df.empty:
                 workbook = writer.book
                 worksheet = writer.sheets['Document_Comparison']
-                mismatch_text = "Mismatch of content between Filed Copy and customer copy"
-                merge_ranges = []
-                current_range_start = None
-            
-                # Iterate through rows to find consecutive mismatch entries
-                for row_idx, row in enumerate(df.itertuples(), start=2):  # start=2 because row 1 is header
-                    observation_category = getattr(row, 'Observation___Category', '')  # Handle column name with spaces
                 
-                    if observation_category == mismatch_text:
-                        if current_range_start is None:
-                            current_range_start = row_idx
-                    else:
-                        if current_range_start is not None:
-                            # End the current range
-                            if row_idx - 1 > current_range_start:  # Only merge if more than one cell
-                                merge_ranges.append((current_range_start, row_idx - 1))
-                            current_range_start = None
-            
-                # Handle case where mismatch entries go till the end
-                if current_range_start is not None:
-                    if len(df) + 1 > current_range_start:  # +1 because we started from row 2
-                        merge_ranges.append((current_range_start, len(df) + 1))
-            
-                # Apply merging and center alignment for "Observation - Category" column (column B)
-                observation_col = 'B'  # Observation - Category is the 2nd column
-            
-                for start_row, end_row in merge_ranges:
-                    if end_row > start_row:  # Only merge if there are multiple cells
-                        merge_range = f"{observation_col}{start_row}:{observation_col}{end_row}"
-                        worksheet.merge_cells(merge_range)
+                # Apply merging and center alignment for "Mismatch of content between Filed Copy and customer copy"
+                from openpyxl.styles import Alignment
+                
+                # Find rows with the mismatch category
+                mismatch_rows = []
+                for idx, result in enumerate(comparison_results):
+                    if result.get('Observation - Category') == 'Mismatch of content between Filed Copy and customer copy':
+                        mismatch_rows.append(idx + 2)  # +2 because Excel is 1-indexed and we have a header row
+                
+                # Group consecutive rows for merging
+                if mismatch_rows:
+                    # Sort the rows
+                    mismatch_rows.sort()
                     
-                        # Apply center alignment and formatting to the merged cell
-                        merged_cell = worksheet[f"{observation_col}{start_row}"]
-                        merged_cell.alignment = Alignment(
-                            horizontal='center',
-                            vertical='center',
-                            wrap_text=True
-                        )
+                    # Group consecutive rows
+                    groups = []
+                    current_group = [mismatch_rows[0]]
+                    
+                    for i in range(1, len(mismatch_rows)):
+                        if mismatch_rows[i] == mismatch_rows[i-1] + 1:
+                            current_group.append(mismatch_rows[i])
+                        else:
+                            groups.append(current_group)
+                            current_group = [mismatch_rows[i]]
+                    groups.append(current_group)
+                    
+                    # Apply merging for each group (only if group has more than 1 row)
+                    for group in groups:
+                        if len(group) > 1:
+                            start_row = group[0]
+                            end_row = group[-1]
+                            
+                            # Merge cells in column B (Observation - Category)
+                            merge_range = f'B{start_row}:B{end_row}'
+                            worksheet.merge_cells(merge_range)
+                            
+                            # Set center alignment for the merged cell
+                            merged_cell = worksheet[f'B{start_row}']
+                            merged_cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
                 
+                # Auto-adjust column widths
                 for column in worksheet.columns:
                     max_length = 0
                     column_letter = column[0].column_letter
@@ -445,6 +461,7 @@ Respond only with the final response after understanding and following the above
                     for cell in column:
                         try:
                             if cell.value:
+                                # Handle different columns specially
                                 if column_letter == 'D':  # Sub-category of Observation column
                                     max_length = max(max_length, min(len(str(cell.value)), 80))
                                 elif column_letter == 'E':  # Content column
@@ -456,7 +473,7 @@ Respond only with the final response after understanding and following the above
                     
                     # Set column width with reasonable limits
                     if column_letter == 'D':  # Sub-category of Observation column
-                        adjusted_width = min(max_length + 2, 800)
+                        adjusted_width = min(max_length + 2, 80)
                     elif column_letter == 'E':  # Content column
                         adjusted_width = min(max_length + 2, 120)  # Wider for content
                     else:
@@ -464,27 +481,11 @@ Respond only with the final response after understanding and following the above
                     
                     worksheet.column_dimensions[column_letter].width = adjusted_width
                 
-                # Enable text wrapping for all cells
-                from openpyxl.styles import Alignment
+                # Enable text wrapping for all cells (except the merged ones which are already handled)
                 for row in worksheet.iter_rows():
                     for cell in row:
-                        cell.alignment = Alignment(wrap_text=True, vertical='top')
-
-                header_fill = PatternFill(
-                start_color="E6F3FF",
-                end_color="4472C4",
-                fill_type="solid"
-                )
-                header_font = Font(color="FFFFFF", bold=True)  # White text
-            
-                for cell in worksheet[1]:
-                    cell.fill = header_fill
-                    cell.font = header_font
-                    cell.alignment = Alignment(
-                        horizontal='center',
-                        vertical='center',
-                        wrap_text=True
-                    )
+                        if not cell.coordinate.startswith('B') or cell.row == 1:  # Skip merged cells in column B except header
+                            cell.alignment = Alignment(wrap_text=True, vertical='top')
             
             # Summary sheet
             sections_with_differences = len([r for r in comparison_results if 'Mismatch' in r.get('Observation - Category', '')])
