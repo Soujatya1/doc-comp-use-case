@@ -108,10 +108,7 @@ Extract the sections and return as JSON format:
                 SystemMessage(content=system_prompt),
                 HumanMessage(content=user_prompt)
             ]
-            st.write(f"Filed Copy text length: {len(doc1_text)}")
-            st.write(f"Customer Copy text length: {len(doc2_text)}")
-            st.write(f"Filed Copy first 500 chars: {doc1_text[:500]}")
-            st.write(f"Customer Copy first 500 chars: {doc2_text[:500]}")
+
             st.write(f"Sending to LLM ({doc_name}):\n{user_prompt[:2000]}")
             st.write(f"LLM Response for {doc_name}: {response.content[:500]}")
             response = self.llm.invoke(messages)
