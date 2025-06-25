@@ -44,18 +44,22 @@ class DocumentComparer:
             logger.error(f"Error extracting text from PDF: {str(e)}")
             return ""
 
-    def extract_sample_number(self, document_text: str) -> str:
+    def extract_sample_number_from_filename(self, filename: str) -> str:
+        """
+        Extract sample number specifically from filename.
+        For pattern like "0611173223__Sample_11_" -> returns "0611173223"
+        """
         patterns = [
-            r'Sample\s*[#:]?\s*(\d+)',
-            r'Sample\s+No\.?\s*(\d+)',
-            r'Sample\s+Number\s*[:]?(\d+)',
-            r'Doc\s*[#:]?\s*(\d+)',
-            r'Document\s*[#:]?\s*(\d+)',
+            r'(\d{10})__Sample_\d+_',  # Exactly 10 digits before __Sample_
+            r'(\d{8,})__Sample',       # 8 or more digits before __Sample
+            r'^(\d{8,})',              # First set of 8+ digits at start
         ]
+    
         for pattern in patterns:
-            match = re.search(pattern, document_text, re.IGNORECASE)
+            match = re.search(pattern, filename, re.IGNORECASE)
             if match:
                 return match.group(1)
+    
         return "001"
 
     def filter_sections_with_llm(self, document_text: str, doc_name: str) -> Dict[str, str]:
@@ -647,7 +651,7 @@ def main():
                     return
                 
                 # Extract sample number from document 2 (Customer Copy)
-                sample_number = comparer.extract_sample_number(doc2_text)
+                sample_number = comparer.extract_sample_number_from_filename(doc2_text)
                 
                 # Filter sections using LLM
                 st.info("🤖 Filtering sections using AI...")
