@@ -584,18 +584,6 @@ Respond only with the final response after understanding and following the above
             else:
                 sub_category = lines[0]
 
-        if len(sub_category) > 500:
-            truncate_at = 497
-            last_sentence_end = max(
-                sub_category.rfind('.', 0, truncate_at),
-                sub_category.rfind('!', 0, truncate_at),
-                sub_category.rfind('?', 0, truncate_at)
-            )
-            if last_sentence_end > 200:
-                sub_category = sub_category[:last_sentence_end + 1]
-            else:
-                sub_category = sub_category[:497] + "..."
-
         if sub_category and len(sub_category) > 0:
             sub_category = sub_category[0].upper() + sub_category[1:]
 
@@ -646,7 +634,7 @@ Respond only with the final response after understanding and following the above
                         except:
                             pass
                 
-                    adjusted_width = min(max_length + 2, 50)  # Cap at 50 characters
+                    adjusted_width = max_length + 2
                     worksheet.column_dimensions[column_letter].width = adjusted_width
                 
                 for column in worksheet.columns:
@@ -656,22 +644,9 @@ Respond only with the final response after understanding and following the above
                     for cell in column:
                         try:
                             if cell.value:
-                                # Handle different columns specially
-                                if column_letter == 'D':
-                                    max_length = max(max_length, min(len(str(cell.value)), 80))
-                                elif column_letter == 'E':
-                                    max_length = max(max_length, min(len(str(cell.value)), 120))
-                                else:
-                                    max_length = max(max_length, len(str(cell.value)))
+                                max_length = max(max_length, len(str(cell.value)))
                         except:
                             pass
-                    
-                    if column_letter == 'D':
-                        adjusted_width = min(max_length + 2, 80)
-                    elif column_letter == 'E':
-                        adjusted_width = min(max_length + 2, 120)
-                    else:
-                        adjusted_width = min(max_length + 2, 30)
                     
                     worksheet.column_dimensions[column_letter].width = adjusted_width
                 
