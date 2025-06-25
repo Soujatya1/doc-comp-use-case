@@ -653,65 +653,61 @@ Respond only with the final response after understanding and following the above
     
     def create_excel_report(self, comparison_results: List[Dict], doc1_name: str, doc2_name: str) -> bytes:
         """Create Excel report from comparison results with proper formatting including Content column and merged cells."""
-        
+    
         # Create DataFrame
         df = pd.DataFrame(comparison_results)
-        
+    
         # Reorder columns to include the new Content column
         if not df.empty:
             df = df[['Samples affected', 'Observation - Category', 'Page', 'Sub-category of Observation', 'Content']]
-        
+    
         # Create Excel file in memory
         output = io.BytesIO()
-        
+    
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            # Main comparison sheet
+        # Main comparison sheet
             df.to_excel(writer, sheet_name='Document_Comparison', index=False)
-            
+        
             # Format the main sheet for better readability
             if not df.empty:
                 workbook = writer.book
                 worksheet = writer.sheets['Document_Comparison']
-                
-                # Apply merging and center alignment for "Mismatch of content between Filed Copy and customer copy"
+            
+                # Apply merging and center alignment for "Observation - Category" column
                 from openpyxl.styles import Alignment
+            
+                # Since all rows have the same "Observation - Category" value, merge all data rows
+                total_rows = len(df)
+                if total_rows > 1:  # Only merge if there's more than 1 row
+                    # Merge cells in column B (Observation - Category) from row 2 to last row
+                    start_row = 2  # Row 2 (after header)
+                    end_row = total_rows + 1  # +1 because Excel is 1-indexed and we have header
                 
-                # Find rows with the mismatch category
-                mismatch_rows = []
-                for idx, result in enumerate(comparison_results):
-                    if result.get('Observation - Category') == 'Mismatch of content between Filed Copy and customer copy':
-                        mismatch_rows.append(idx + 2)  # +2 because Excel is 1-indexed and we have a header row
+                    merge_range = f'B{start_row}:B{end_row}'
+                    worksheet.merge_cells(merge_range)
                 
-                # Group consecutive rows for merging
-                if mismatch_rows:
-                    # Sort the rows
-                    mismatch_rows.sort()
-                    
-                    # Group consecutive rows
-                    groups = []
-                    current_group = [mismatch_rows[0]]
-                    
-                    for i in range(1, len(mismatch_rows)):
-                        if mismatch_rows[i] == mismatch_rows[i-1] + 1:
-                            current_group.append(mismatch_rows[i])
-                        else:
-                            groups.append(current_group)
-                            current_group = [mismatch_rows[i]]
-                    groups.append(current_group)
-                    
-                    # Apply merging for each group (only if group has more than 1 row)
-                    for group in groups:
-                        if len(group) > 1:
-                            start_row = group[0]
-                            end_row = group[-1]
-                            
-                            # Merge cells in column B (Observation - Category)
-                            merge_range = f'B{start_row}:B{end_row}'
-                            worksheet.merge_cells(merge_range)
-                            
-                            # Set center alignment for the merged cell
-                            merged_cell = worksheet[f'B{start_row}']
-                            merged_cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                    # Set center alignment for the merged cell
+                    merged_cell = worksheet[f'B{start_row}']
+                    merged_cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            
+            # Optional: Auto-adjust column widths for better readability
+                for column in worksheet.columns:
+                    max_length = 0
+                    column_letter = column[0].column_letter
+                
+                    for cell in column:
+                        try:
+                            if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                        except:
+                            pass
+                
+                    # Set column width (with some padding)
+                    adjusted_width = min(max_length + 2, 50)  # Cap at 50 characters
+                    worksheet.column_dimensions[column_letter].width = adjusted_width
+    
+        output.seek(0)
+        return output.getvalue()
                 
                 # Auto-adjust column widths
                 for column in worksheet.columns:
