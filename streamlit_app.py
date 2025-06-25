@@ -584,18 +584,6 @@ Respond only with the final response after understanding and following the above
             else:
                 sub_category = lines[0]
 
-        if len(sub_category) > 500:
-            truncate_at = 497
-            last_sentence_end = max(
-                sub_category.rfind('.', 0, truncate_at),
-                sub_category.rfind('!', 0, truncate_at),
-                sub_category.rfind('?', 0, truncate_at)
-            )
-            if last_sentence_end > 200:
-                sub_category = sub_category[:last_sentence_end + 1]
-            else:
-                sub_category = sub_category[:497] + "..."
-
         if sub_category and len(sub_category) > 0:
             sub_category = sub_category[0].upper() + sub_category[1:]
 
