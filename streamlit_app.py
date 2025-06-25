@@ -22,7 +22,7 @@ class DocumentComparer:
             api_version=api_version,
             deployment_name=deployment_name,
             temperature=0.1,
-            max_tokens=35000
+            max_tokens=4000  # Updated to match your constraint
         )
 
         self.target_sections = [
@@ -31,6 +31,10 @@ class DocumentComparer:
             "SCHEDULE",
             "DEFINITIONS & ABBREVIATIONS"
         ]
+        
+        # Approximate token limits (conservative estimates)
+        self.max_input_chars = 12000  # ~3000 tokens (4 chars per token average)
+        self.chunk_size = 8000  # Conservative chunk size
 
     def extract_text_from_pdf(self, pdf_file) -> str:
         try:
@@ -44,7 +48,6 @@ class DocumentComparer:
             return ""
 
     def extract_sample_number_from_filename(self, filename: str) -> str:
-
         patterns = [
             r'(\d{10})__Sample_\d+_',
             r'(\d{8,})__Sample',
@@ -58,7 +61,136 @@ class DocumentComparer:
     
         return "001"
 
-    def filter_sections_with_llm(self, document_text: str, doc_name: str) -> Dict[str, str]:
+    def estimate_token_count(self, text: str) -> int:
+        """Simple token estimation: ~4 characters per token on average"""
+        return len(text) // 4
+
+    def chunk_document(self, text: str, chunk_size: int = None) -> List[str]:
+        """Split document into manageable chunks"""
+        if chunk_size is None:
+            chunk_size = self.chunk_size
+            
+        chunks = []
+        current_pos = 0
+        
+        while current_pos < len(text):
+            # Try to find a good break point (end of sentence or paragraph)
+            end_pos = current_pos + chunk_size
+            
+            if end_pos >= len(text):
+                chunks.append(text[current_pos:])
+                break
+            
+            # Look for paragraph break
+            para_break = text.rfind('\n\n', current_pos, end_pos)
+            if para_break > current_pos:
+                chunks.append(text[current_pos:para_break])
+                current_pos = para_break + 2
+                continue
+            
+            # Look for sentence break
+            sent_break = max(
+                text.rfind('. ', current_pos, end_pos),
+                text.rfind('.\n', current_pos, end_pos),
+                text.rfind('!\n', current_pos, end_pos),
+                text.rfind('?\n', current_pos, end_pos)
+            )
+            
+            if sent_break > current_pos:
+                chunks.append(text[current_pos:sent_break + 1])
+                current_pos = sent_break + 1
+            else:
+                # No good break point found, hard break
+                chunks.append(text[current_pos:end_pos])
+                current_pos = end_pos
+        
+        return [chunk.strip() for chunk in chunks if chunk.strip()]
+
+    def pre_filter_sections_with_keywords(self, document_text: str) -> Dict[str, List[str]]:
+        """Pre-filter document using keyword matching to identify potential sections"""
+        
+        # Keywords for each section
+        section_keywords = {
+            "FORWARDING LETTER": [
+                "sub:", "subject:", "issuance", "forwarding", "ref:", "reference",
+                "disclaimer", "dispute", "english version", "dear", "regards"
+            ],
+            "PREAMBLE": [
+                "preamble", "whereas", "now therefore", "witnesseth", "parties agree"
+            ],
+            "SCHEDULE": [
+                "schedule", "annexure", "attachment", "exhibit", "details", "particulars"
+            ],
+            "DEFINITIONS & ABBREVIATIONS": [
+                "definition", "abbreviation", "means", "shall mean", "interpreted", 
+                "glossary", "terms", "terminology"
+            ]
+        }
+        
+        potential_sections = {}
+        text_lower = document_text.lower()
+        
+        for section, keywords in section_keywords.items():
+            potential_chunks = []
+            
+            # Find chunks that contain section keywords
+            for keyword in keywords:
+                start_pos = 0
+                while True:
+                    pos = text_lower.find(keyword, start_pos)
+                    if pos == -1:
+                        break
+                    
+                    # Extract surrounding context
+                    context_start = max(0, pos - 500)
+                    context_end = min(len(document_text), pos + 1500)
+                    context = document_text[context_start:context_end]
+                    
+                    potential_chunks.append(context)
+                    start_pos = pos + 1
+            
+            potential_sections[section] = potential_chunks
+        
+        return potential_sections
+
+    def filter_sections_with_llm_chunked(self, document_text: str, doc_name: str) -> Dict[str, str]:
+        """Filter sections with LLM using chunking strategy"""
+        
+        # Check if document is small enough to process directly
+        if self.estimate_token_count(document_text) < 2500:  # Conservative limit
+            return self.filter_sections_with_llm_direct(document_text, doc_name)
+        
+        st.info(f"Document {doc_name} is large, using chunked processing...")
+        
+        # Strategy 1: Try keyword-based pre-filtering first
+        try:
+            potential_sections = self.pre_filter_sections_with_keywords(document_text)
+            final_sections = {}
+            
+            for section in self.target_sections:
+                chunks = potential_sections.get(section, [])
+                
+                if not chunks:
+                    # If no keyword matches, try processing first few chunks
+                    doc_chunks = self.chunk_document(document_text, 6000)
+                    chunks = doc_chunks[:3]  # Process first 3 chunks
+                
+                if chunks:
+                    section_content = self.extract_section_from_chunks(chunks, section, doc_name)
+                    final_sections[section] = section_content
+                else:
+                    final_sections[section] = "NOT FOUND"
+            
+            return final_sections
+            
+        except Exception as e:
+            logger.error(f"Chunked processing failed for {doc_name}: {str(e)}")
+            # Fallback to processing document in sequential chunks
+            return self.filter_sections_sequential_chunks(document_text, doc_name)
+
+    def filter_sections_with_llm_direct(self, document_text: str, doc_name: str) -> Dict[str, str]:
+        """Original direct processing for smaller documents"""
+        
         system_prompt = """You are an expert document analyzer. Your task is to extract specific sections from legal/business documents and return the results as valid JSON.
 
 Target sections and instructions:
@@ -103,7 +235,6 @@ Return as JSON format:
 """
         
         try:
-            # Enable JSON mode for more reliable JSON responses
             llm_with_json = self.llm.bind(response_format={"type": "json_object"})
             
             messages = [
@@ -111,46 +242,112 @@ Return as JSON format:
                 HumanMessage(content=user_prompt)
             ]
             
-            # Debug output with correct document name
-            st.write(f"Sending to LLM ({doc_name}) with JSON mode enabled...")
+            st.write(f"Processing {doc_name} directly (small document)...")
             
-            # Make the LLM call with JSON mode
             response = llm_with_json.invoke(messages)
             
-            # Debug: Show response
-            st.write(f"LLM Response for {doc_name}: {response.content[:800]}...")
-            
-            # Try to parse the JSON response directly
             try:
                 sections = json.loads(response.content)
                 st.write(f"Successfully parsed sections for {doc_name}: {list(sections.keys())}")
                 return sections
             except json.JSONDecodeError as json_error:
-                logger.error(f"Direct JSON parsing failed for {doc_name}: {str(json_error)}")
-                
-                # Fallback: Try to extract JSON from response
-                json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
-                if json_match:
-                    try:
-                        sections = json.loads(json_match.group())
-                        st.write(f"Successfully parsed sections using regex for {doc_name}: {list(sections.keys())}")
-                        return sections
-                    except json.JSONDecodeError:
-                        logger.error(f"Regex JSON parsing also failed for {doc_name}")
-                        st.error(f"JSON parsing failed for {doc_name}, using fallback method")
-                        return self._fallback_section_extraction(document_text)
-                else:
-                    logger.warning(f"Could not find JSON in LLM response for {doc_name}")
-                    st.warning(f"No JSON found in response for {doc_name}, using fallback method")
-                    return self._fallback_section_extraction(document_text)
+                logger.error(f"JSON parsing failed for {doc_name}: {str(json_error)}")
+                return self._fallback_section_extraction(document_text)
                 
         except Exception as e:
-            logger.error(f"Error in LLM section filtering for {doc_name}: {str(e)}")
-            st.error(f"LLM call failed for {doc_name}: {str(e)}")
-            
-            # Use fallback method when LLM fails
-            st.info(f"Using fallback section extraction for {doc_name}")
+            logger.error(f"Error in direct LLM processing for {doc_name}: {str(e)}")
             return self._fallback_section_extraction(document_text)
+
+    def extract_section_from_chunks(self, chunks: List[str], section_name: str, doc_name: str) -> str:
+        """Extract a specific section from multiple chunks"""
+        
+        system_prompt = f"""You are an expert at finding specific sections in document chunks. 
+
+Your task is to find the "{section_name}" section from the provided document chunks.
+
+Section guidelines:
+- FORWARDING LETTER: Look for subject lines, reference numbers, formal letter content, disclaimers
+- PREAMBLE: Look for "PREAMBLE", "WHEREAS" clauses, introductory statements
+- SCHEDULE: Look for "SCHEDULE", "ANNEXURE", detailed lists, tables
+- DEFINITIONS & ABBREVIATIONS: Look for "DEFINITIONS", "ABBREVIATIONS", term explanations
+
+Instructions:
+1. Examine all chunks for the target section
+2. If found, return the complete section content
+3. If not found in any chunk, return "NOT FOUND"
+4. Return ONLY the section content or "NOT FOUND" - no explanations
+"""
+        best_match = "NOT FOUND"
+        
+        for i, chunk in enumerate(chunks):
+            if self.estimate_token_count(chunk) > 2500:
+                # Further split if chunk is still too large
+                sub_chunks = self.chunk_document(chunk, 4000)
+                chunk = sub_chunks[0]  # Take first sub-chunk
+            
+            user_prompt = f"""Find the "{section_name}" section in this document chunk:
+
+Document: {doc_name}
+Chunk {i+1}/{len(chunks)}:
+
+{chunk}
+
+Return ONLY the section content or "NOT FOUND":"""
+            
+            try:
+                messages = [
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=user_prompt)
+                ]
+                
+                response = self.llm.invoke(messages)
+                result = response.content.strip()
+                
+                # If we find content (not "NOT FOUND"), use it
+                if result != "NOT FOUND" and len(result) > 10:
+                    best_match = result
+                    break  # Found it, no need to check other chunks
+                    
+            except Exception as e:
+                logger.error(f"Error processing chunk {i+1} for section {section_name}: {str(e)}")
+                continue
+        
+        return best_match
+
+    def filter_sections_sequential_chunks(self, document_text: str, doc_name: str) -> Dict[str, str]:
+        """Process document in sequential chunks as fallback"""
+        
+        chunks = self.chunk_document(document_text, 6000)
+        st.info(f"Processing {doc_name} in {len(chunks)} sequential chunks...")
+        
+        final_sections = {}
+        
+        for section in self.target_sections:
+            section_content = "NOT FOUND"
+            
+            # Try to find section in chunks
+            for i, chunk in enumerate(chunks):
+                try:
+                    if self.estimate_token_count(chunk) > 2500:
+                        continue  # Skip chunks that are still too large
+                    
+                    result = self.extract_section_from_chunks([chunk], section, f"{doc_name}_chunk_{i+1}")
+                    
+                    if result != "NOT FOUND":
+                        section_content = result
+                        break
+                        
+                except Exception as e:
+                    logger.error(f"Error processing chunk {i+1} for section {section}: {str(e)}")
+                    continue
+            
+            final_sections[section] = section_content
+        
+        return final_sections
+
+    def filter_sections_with_llm(self, document_text: str, doc_name: str) -> Dict[str, str]:
+        """Main entry point for section filtering with intelligent routing"""
+        return self.filter_sections_with_llm_chunked(document_text, doc_name)
     
     def _fallback_section_extraction(self, text: str) -> Dict[str, str]:
         """Fallback method for section extraction using regex."""
@@ -179,7 +376,39 @@ Return as JSON format:
             doc1_content = doc1_sections.get(section, "NOT FOUND")
             doc2_content = doc2_sections.get(section, "NOT FOUND")
 
-            system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and do the following:
+            # Check if content is too large for comparison
+            total_content_size = len(doc1_content) + len(doc2_content)
+            
+            if total_content_size > 8000:  # If combined content is too large
+                # Truncate content for comparison but keep full content for display
+                doc1_truncated = doc1_content[:3000] if doc1_content != "NOT FOUND" else "NOT FOUND"
+                doc2_truncated = doc2_content[:3000] if doc2_content != "NOT FOUND" else "NOT FOUND"
+                
+                st.warning(f"Section {section} content truncated for comparison due to size")
+                
+                comparison_result = self._compare_section_content(
+                    doc1_truncated, doc2_truncated, section, sample_number, 
+                    doc1_content, doc2_content  # Pass full content for display
+                )
+            else:
+                comparison_result = self._compare_section_content(
+                    doc1_content, doc2_content, section, sample_number
+                )
+            
+            comparison_results.append(comparison_result)
+
+        return comparison_results
+    
+    def _compare_section_content(self, doc1_content: str, doc2_content: str, section: str, 
+                               sample_number: str, full_doc1_content: str = None, 
+                               full_doc2_content: str = None) -> Dict:
+        """Compare section content using LLM"""
+        
+        # Use full content for display if provided, otherwise use the comparison content
+        display_doc1 = full_doc1_content if full_doc1_content is not None else doc1_content
+        display_doc2 = full_doc2_content if full_doc2_content is not None else doc2_content
+
+        system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and do the following:
 
 Step 1: Understand each section separately.
 
@@ -198,8 +427,8 @@ Step 3: Present a structured, **point-wise list** of the meaningful differences,
 Section Name: {section}
 
 Compare the two documents as:
-- Filed Copy = {doc1_name}
-- Customer Copy = {doc2_name}
+- Filed Copy = Document 1
+- Customer Copy = Document 2
 
 Filed Copy:
 {doc1_content}
@@ -210,31 +439,29 @@ Customer Copy:
 Respond only with the final response after understanding and following the above steps. If no meaningful content differences are found, clearly respond: "NO_CONTENT_DIFFERENCE".
 """
 
-            try:
-                messages = [
-                    SystemMessage(content=system_prompt),
-                    HumanMessage(content="Please provide your analysis.")
-                ]
+        try:
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content="Please provide your analysis.")
+            ]
 
-                response = self.llm.invoke(messages)
+            response = self.llm.invoke(messages)
 
-                comparison_result = self._create_section_result(
-                    response.content, section, doc1_content, doc2_content, sample_number
-                )
-                comparison_results.append(comparison_result)
+            comparison_result = self._create_section_result(
+                response.content, section, display_doc1, display_doc2, sample_number
+            )
+            return comparison_result
 
-            except Exception as e:
-                logger.error(f"Error comparing section {section}: {str(e)}")
-                comparison_results.append({
-                    'Samples affected': sample_number,
-                    'Observation - Category': 'Mismatch of content between Filed Copy and customer copy',
-                    'Page': self._get_page_name(section),
-                    'Sub-category of Observation': f'Error during comparison: {str(e)}',
-                    'Content': f"Filed Copy: {doc1_content[:500]}{'...' if len(doc1_content) > 500 else ''}\n\n"
-                           f"Customer Copy: {doc2_content[:500]}{'...' if len(doc2_content) > 500 else ''}"
-                })
-
-        return comparison_results
+        except Exception as e:
+            logger.error(f"Error comparing section {section}: {str(e)}")
+            return {
+                'Samples affected': sample_number,
+                'Observation - Category': 'Mismatch of content between Filed Copy and customer copy',
+                'Page': self._get_page_name(section),
+                'Sub-category of Observation': f'Error during comparison: {str(e)}',
+                'Content': f"Filed Copy: {display_doc1[:500]}{'...' if len(display_doc1) > 500 else ''}\n\n"
+                       f"Customer Copy: {display_doc2[:500]}{'...' if len(display_doc2) > 500 else ''}"
+            }
     
     def _get_page_name(self, section: str) -> str:
         section_mapping = {
@@ -354,26 +581,26 @@ Respond only with the final response after understanding and following the above
     def _parse_difference_description(self, response_content: str, section: str) -> str:
         """Parse LLM response to extract difference description."""
 
-    # Clean up the LLM response to use as sub-category
+        # Clean up the LLM response to use as sub-category
         sub_category = response_content.strip()
 
-    # Remove common prefixes that might be added by LLM (case-insensitive)
+        # Remove common prefixes that might be added by LLM (case-insensitive)
         prefixes_to_remove = [
-        "Meaningful differences found:",
-        "Content differences identified:",
-        "The following content differences were found:",
-        "Key content differences:",
-        "Analysis shows the following content changes:",
-        "Comparison reveals content differences:",
-        "The following meaningful content differences were identified:",
-        "Content analysis reveals:",
-        "Substantive differences:",
-        "Differences found:",
-        "The differences are:",
-        "Key differences:",
-        "Analysis shows:",
-        "Comparison reveals:",
-        "The following differences were identified:"
+            "Meaningful differences found:",
+            "Content differences identified:",
+            "The following content differences were found:",
+            "Key content differences:",
+            "Analysis shows the following content changes:",
+            "Comparison reveals content differences:",
+            "The following meaningful content differences were identified:",
+            "Content analysis reveals:",
+            "Substantive differences:",
+            "Differences found:",
+            "The differences are:",
+            "Key differences:",
+            "Analysis shows:",
+            "Comparison reveals:",
+            "The following differences were identified:"
         ]
 
         for prefix in prefixes_to_remove:
@@ -381,15 +608,15 @@ Respond only with the final response after understanding and following the above
                 sub_category = sub_category[len(prefix):].strip()
                 break
 
-    # Clean up common suffixes and extra whitespace
+        # Clean up common suffixes and extra whitespace
         sub_category = re.sub(r'\s+', ' ', sub_category)
         sub_category = sub_category.strip('. \n\r\t')
 
-    # Remove bullet points and numbering from the beginning
+        # Remove bullet points and numbering from the beginning
         sub_category = re.sub(r'^[-•*]\s*', '', sub_category)
         sub_category = re.sub(r'^\d+\.\s*', '', sub_category)
 
-    # If response contains multiple lines, take the first meaningful line
+        # If response contains multiple lines, take the first meaningful line
         lines = [line.strip() for line in sub_category.split('\n') if line.strip()]
         if lines:
             for line in lines:
@@ -399,7 +626,7 @@ Respond only with the final response after understanding and following the above
             else:
                 sub_category = lines[0]
 
-    # Truncate if too long
+        # Truncate if too long
         if len(sub_category) > 500:
             truncate_at = 497
             last_sentence_end = max(
@@ -412,11 +639,11 @@ Respond only with the final response after understanding and following the above
             else:
                 sub_category = sub_category[:497] + "..."
 
-    # Ensure it starts with uppercase
+        # Ensure it starts with uppercase
         if sub_category and len(sub_category) > 0:
             sub_category = sub_category[0].upper() + sub_category[1:]
 
-    # Default if too generic or short
+        # Default if too generic or short
         if len(sub_category) < 10:
             sub_category = f"Meaningful content differences identified in section {section}"
 
