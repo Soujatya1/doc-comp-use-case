@@ -611,6 +611,22 @@ Respond only with the final response after understanding and following the above
                 worksheet = writer.sheets['Document_Comparison']
             
                 from openpyxl.styles import Alignment
+
+                max_widths = {
+                    'A': 15,  # Samples affected
+                    'B': 35,  # Observation Category
+                    'C': 20,  # Page
+                    'D': 50,  # Sub-category
+                    'E': 80   # Content (limited width)
+                }
+            
+                for col_letter, max_width in max_widths.items():
+                    worksheet.column_dimensions[col_letter].width = max_width
+            
+                # Apply text wrapping to all cells
+                for row in worksheet.iter_rows():
+                    for cell in row:
+                        cell.alignment = Alignment(wrap_text=True, vertical='top')
             
                 total_rows = len(df)
                 if total_rows > 1:  # Only merge if there's more than 1 row
