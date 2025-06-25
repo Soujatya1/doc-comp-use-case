@@ -22,7 +22,7 @@ class DocumentComparer:
             api_version=api_version,
             deployment_name=deployment_name,
             temperature=0.1,
-            max_tokens=4000  # Updated to match your constraint
+            max_tokens=4000
         )
 
         self.target_sections = [
@@ -32,9 +32,8 @@ class DocumentComparer:
             "DEFINITIONS & ABBREVIATIONS"
         ]
         
-        # Approximate token limits (conservative estimates)
-        self.max_input_chars = 12000  # ~3000 tokens (4 chars per token average)
-        self.chunk_size = 8000  # Conservative chunk size
+        self.max_input_chars = 12000
+        self.chunk_size = 8000
 
     def extract_text_from_pdf(self, pdf_file) -> str:
         try:
@@ -62,11 +61,9 @@ class DocumentComparer:
         return "001"
 
     def estimate_token_count(self, text: str) -> int:
-        """Simple token estimation: ~4 characters per token on average"""
         return len(text) // 4
 
     def chunk_document(self, text: str, chunk_size: int = None) -> List[str]:
-        """Split document into manageable chunks"""
         if chunk_size is None:
             chunk_size = self.chunk_size
             
@@ -74,21 +71,18 @@ class DocumentComparer:
         current_pos = 0
         
         while current_pos < len(text):
-            # Try to find a good break point (end of sentence or paragraph)
             end_pos = current_pos + chunk_size
             
             if end_pos >= len(text):
                 chunks.append(text[current_pos:])
                 break
             
-            # Look for paragraph break
             para_break = text.rfind('\n\n', current_pos, end_pos)
             if para_break > current_pos:
                 chunks.append(text[current_pos:para_break])
                 current_pos = para_break + 2
                 continue
             
-            # Look for sentence break
             sent_break = max(
                 text.rfind('. ', current_pos, end_pos),
                 text.rfind('.\n', current_pos, end_pos),
@@ -100,16 +94,13 @@ class DocumentComparer:
                 chunks.append(text[current_pos:sent_break + 1])
                 current_pos = sent_break + 1
             else:
-                # No good break point found, hard break
                 chunks.append(text[current_pos:end_pos])
                 current_pos = end_pos
         
         return [chunk.strip() for chunk in chunks if chunk.strip()]
 
     def pre_filter_sections_with_keywords(self, document_text: str) -> Dict[str, List[str]]:
-        """Pre-filter document using keyword matching to identify potential sections"""
         
-        # Keywords for each section
         section_keywords = {
             "FORWARDING LETTER": [
                 "sub:", "subject:", "issuance", "forwarding", "ref:", "reference",
@@ -133,7 +124,6 @@ class DocumentComparer:
         for section, keywords in section_keywords.items():
             potential_chunks = []
             
-            # Find chunks that contain section keywords
             for keyword in keywords:
                 start_pos = 0
                 while True:
@@ -141,7 +131,6 @@ class DocumentComparer:
                     if pos == -1:
                         break
                     
-                    # Extract surrounding context
                     context_start = max(0, pos - 500)
                     context_end = min(len(document_text), pos + 1500)
                     context = document_text[context_start:context_end]
@@ -154,15 +143,12 @@ class DocumentComparer:
         return potential_sections
 
     def filter_sections_with_llm_chunked(self, document_text: str, doc_name: str) -> Dict[str, str]:
-        """Filter sections with LLM using chunking strategy"""
         
-        # Check if document is small enough to process directly
         if self.estimate_token_count(document_text) < 2500:  # Conservative limit
             return self.filter_sections_with_llm_direct(document_text, doc_name)
         
         st.info(f"Document {doc_name} is large, using chunked processing...")
         
-        # Strategy 1: Try keyword-based pre-filtering first
         try:
             potential_sections = self.pre_filter_sections_with_keywords(document_text)
             final_sections = {}
@@ -171,9 +157,8 @@ class DocumentComparer:
                 chunks = potential_sections.get(section, [])
                 
                 if not chunks:
-                    # If no keyword matches, try processing first few chunks
                     doc_chunks = self.chunk_document(document_text, 6000)
-                    chunks = doc_chunks[:3]  # Process first 3 chunks
+                    chunks = doc_chunks[:3]
                 
                 if chunks:
                     section_content = self.extract_section_from_chunks(chunks, section, doc_name)
@@ -185,11 +170,9 @@ class DocumentComparer:
             
         except Exception as e:
             logger.error(f"Chunked processing failed for {doc_name}: {str(e)}")
-            # Fallback to processing document in sequential chunks
             return self.filter_sections_sequential_chunks(document_text, doc_name)
 
     def filter_sections_with_llm_direct(self, document_text: str, doc_name: str) -> Dict[str, str]:
-        """Original direct processing for smaller documents"""
         
         system_prompt = """You are an expert document analyzer. Your task is to extract specific sections from legal/business documents and return the results as valid JSON.
 
@@ -259,7 +242,6 @@ Return as JSON format:
             return self._fallback_section_extraction(document_text)
 
     def extract_section_from_chunks(self, chunks: List[str], section_name: str, doc_name: str) -> str:
-        """Extract a specific section from multiple chunks"""
         
         system_prompt = f"""You are an expert at finding specific sections in document chunks. 
 
@@ -303,7 +285,6 @@ Return ONLY the section content or "NOT FOUND":"""
                 response = self.llm.invoke(messages)
                 result = response.content.strip()
                 
-                # If we find content (not "NOT FOUND"), use it
                 if result != "NOT FOUND" and len(result) > 10:
                     best_match = result
                     break  # Found it, no need to check other chunks
@@ -315,7 +296,6 @@ Return ONLY the section content or "NOT FOUND":"""
         return best_match
 
     def filter_sections_sequential_chunks(self, document_text: str, doc_name: str) -> Dict[str, str]:
-        """Process document in sequential chunks as fallback"""
         
         chunks = self.chunk_document(document_text, 6000)
         st.info(f"Processing {doc_name} in {len(chunks)} sequential chunks...")
@@ -346,11 +326,9 @@ Return ONLY the section content or "NOT FOUND":"""
         return final_sections
 
     def filter_sections_with_llm(self, document_text: str, doc_name: str) -> Dict[str, str]:
-        """Main entry point for section filtering with intelligent routing"""
         return self.filter_sections_with_llm_chunked(document_text, doc_name)
     
     def _fallback_section_extraction(self, text: str) -> Dict[str, str]:
-        """Fallback method for section extraction using regex."""
         sections = {}
         text_upper = text.upper()
         
@@ -368,7 +346,6 @@ Return ONLY the section content or "NOT FOUND":"""
     
     def compare_documents_with_llm(self, doc1_sections: Dict[str, str], doc2_sections: Dict[str, str], 
                                doc1_name: str, doc2_name: str, sample_number: str) -> List[Dict]:
-        """Use LLM to intelligently compare document sections and create results for ALL sections."""
     
         comparison_results = []
 
@@ -376,7 +353,6 @@ Return ONLY the section content or "NOT FOUND":"""
             doc1_content = doc1_sections.get(section, "NOT FOUND")
             doc2_content = doc2_sections.get(section, "NOT FOUND")
 
-            # Check if content is too large for comparison
             total_content_size = len(doc1_content) + len(doc2_content)
             
             if total_content_size > 8000:  # If combined content is too large
@@ -402,9 +378,7 @@ Return ONLY the section content or "NOT FOUND":"""
     def _compare_section_content(self, doc1_content: str, doc2_content: str, section: str, 
                                sample_number: str, full_doc1_content: str = None, 
                                full_doc2_content: str = None) -> Dict:
-        """Compare section content using LLM"""
         
-        # Use full content for display if provided, otherwise use the comparison content
         display_doc1 = full_doc1_content if full_doc1_content is not None else doc1_content
         display_doc2 = full_doc2_content if full_doc2_content is not None else doc2_content
 
@@ -475,9 +449,7 @@ Respond only with the final response after understanding and following the above
     
     def _create_section_result(self, response_content: str, section: str, doc1_content: str, 
                              doc2_content: str, sample_number: str) -> Dict:
-        """Create result for each section, showing content regardless of differences."""
         
-        # Check if there are no meaningful content differences
         no_diff_indicators = [
             "NO_CONTENT_DIFFERENCE",
             "NO MEANINGFUL CONTENT DIFFERENCES",
@@ -491,7 +463,6 @@ Respond only with the final response after understanding and following the above
         response_upper = response_content.upper()
         has_differences = not any(indicator in response_upper for indicator in no_diff_indicators)
         
-        # Also check for responses that only mention formatting/structural differences
         formatting_only_indicators = [
             "ONLY FORMATTING DIFFERENCES",
             "ONLY STRUCTURAL DIFFERENCES", 
@@ -504,10 +475,8 @@ Respond only with the final response after understanding and following the above
         if any(indicator in response_upper for indicator in formatting_only_indicators):
             has_differences = False
         
-        # Prepare content for display
         content_display = self._prepare_content_display(doc1_content, doc2_content, section)
         
-        # Handle missing sections
         if doc1_content == "NOT FOUND" and doc2_content == "NOT FOUND":
             return {
                 'Samples affected': sample_number,
@@ -533,13 +502,11 @@ Respond only with the final response after understanding and following the above
                 'Content': content_display
             }
         
-        # Determine observation category and sub-category
         if has_differences:
             # Parse the LLM response for meaningful differences
             sub_category = self._parse_difference_description(response_content, section)
             observation_category = 'Mismatch of content between Filed Copy and customer copy'
         else:
-            # No meaningful content differences
             sub_category = 'No meaningful content differences found'
             observation_category = 'Content matches between Filed Copy and customer copy'
         
@@ -552,17 +519,13 @@ Respond only with the final response after understanding and following the above
         }
     
     def _prepare_content_display(self, doc1_content: str, doc2_content: str, section: str) -> str:
-        """Prepare content display for the Content column."""
         
-        # If both contents are identical, show once
         if doc1_content == doc2_content and doc1_content != "NOT FOUND":
             content = doc1_content
-            # Truncate if too long for Excel display
             if len(content) > 1000:
                 content = content[:1000] + "... [Content truncated for display]"
             return f"[IDENTICAL CONTENT]\n{content}"
         
-        # If contents are different, show both
         result_parts = []
         
         if doc1_content != "NOT FOUND":
@@ -580,12 +543,9 @@ Respond only with the final response after understanding and following the above
         return "\n\n".join(result_parts)
     
     def _parse_difference_description(self, response_content: str, section: str) -> str:
-        """Parse LLM response to extract difference description."""
 
-        # Clean up the LLM response to use as sub-category
         sub_category = response_content.strip()
 
-        # Remove common prefixes that might be added by LLM (case-insensitive)
         prefixes_to_remove = [
             "Meaningful differences found:",
             "Content differences identified:",
@@ -609,15 +569,12 @@ Respond only with the final response after understanding and following the above
                 sub_category = sub_category[len(prefix):].strip()
                 break
 
-        # Clean up common suffixes and extra whitespace
         sub_category = re.sub(r'\s+', ' ', sub_category)
         sub_category = sub_category.strip('. \n\r\t')
 
-        # Remove bullet points and numbering from the beginning
         sub_category = re.sub(r'^[-•*]\s*', '', sub_category)
         sub_category = re.sub(r'^\d+\.\s*', '', sub_category)
 
-        # If response contains multiple lines, take the first meaningful line
         lines = [line.strip() for line in sub_category.split('\n') if line.strip()]
         if lines:
             for line in lines:
@@ -627,7 +584,6 @@ Respond only with the final response after understanding and following the above
             else:
                 sub_category = lines[0]
 
-        # Truncate if too long
         if len(sub_category) > 500:
             truncate_at = 497
             last_sentence_end = max(
@@ -640,7 +596,6 @@ Respond only with the final response after understanding and following the above
             else:
                 sub_category = sub_category[:497] + "..."
 
-        # Ensure it starts with uppercase
         if sub_category and len(sub_category) > 0:
             sub_category = sub_category[0].upper() + sub_category[1:]
 
@@ -652,41 +607,31 @@ Respond only with the final response after understanding and following the above
 
     
     def create_excel_report(self, comparison_results: List[Dict], doc1_name: str, doc2_name: str) -> bytes:
-        """Create Excel report from comparison results with proper formatting including Content column and merged cells."""
     
-        # Create DataFrame
         df = pd.DataFrame(comparison_results)
     
-        # Reorder columns to include the new Content column
         if not df.empty:
-            df = df[['Samples affected', 'Observation - Category', 'Page', 'Sub-category of Observation', 'Content']]
+            df = df[['Samples affected', 'Observation - Category', 'Page', 'Sub-category of Observation']]
     
-        # Create Excel file in memory
         output = io.BytesIO()
     
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        # Main comparison sheet
             df.to_excel(writer, sheet_name='Document_Comparison', index=False)
         
-            # Format the main sheet for better readability
             if not df.empty:
                 workbook = writer.book
                 worksheet = writer.sheets['Document_Comparison']
             
-                # Apply merging and center alignment for "Observation - Category" column
                 from openpyxl.styles import Alignment
             
-                # Since all rows have the same "Observation - Category" value, merge all data rows
                 total_rows = len(df)
                 if total_rows > 1:  # Only merge if there's more than 1 row
-                    # Merge cells in column B (Observation - Category) from row 2 to last row
                     start_row = 2  # Row 2 (after header)
-                    end_row = total_rows + 1  # +1 because Excel is 1-indexed and we have header
+                    end_row = total_rows + 1
                 
                     merge_range = f'B{start_row}:B{end_row}'
                     worksheet.merge_cells(merge_range)
                 
-                    # Set center alignment for the merged cell
                     merged_cell = worksheet[f'B{start_row}']
                     merged_cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
@@ -701,11 +646,9 @@ Respond only with the final response after understanding and following the above
                         except:
                             pass
                 
-                    # Set column width (with some padding)
                     adjusted_width = min(max_length + 2, 50)  # Cap at 50 characters
                     worksheet.column_dimensions[column_letter].width = adjusted_width
                 
-                # Auto-adjust column widths
                 for column in worksheet.columns:
                     max_length = 0
                     column_letter = column[0].column_letter
@@ -714,79 +657,31 @@ Respond only with the final response after understanding and following the above
                         try:
                             if cell.value:
                                 # Handle different columns specially
-                                if column_letter == 'D':  # Sub-category of Observation column
+                                if column_letter == 'D':
                                     max_length = max(max_length, min(len(str(cell.value)), 80))
-                                elif column_letter == 'E':  # Content column
+                                elif column_letter == 'E':
                                     max_length = max(max_length, min(len(str(cell.value)), 120))
                                 else:
                                     max_length = max(max_length, len(str(cell.value)))
                         except:
                             pass
                     
-                    # Set column width with reasonable limits
-                    if column_letter == 'D':  # Sub-category of Observation column
+                    if column_letter == 'D':
                         adjusted_width = min(max_length + 2, 80)
-                    elif column_letter == 'E':  # Content column
-                        adjusted_width = min(max_length + 2, 120)  # Wider for content
+                    elif column_letter == 'E':
+                        adjusted_width = min(max_length + 2, 120)
                     else:
                         adjusted_width = min(max_length + 2, 30)
                     
                     worksheet.column_dimensions[column_letter].width = adjusted_width
                 
-                # Enable text wrapping for all cells (except the merged ones which are already handled)
                 for row in worksheet.iter_rows():
                     for cell in row:
-                        if not cell.coordinate.startswith('B') or cell.row == 1:  # Skip merged cells in column B except header
+                        if not cell.coordinate.startswith('B') or cell.row == 1:
                             cell.alignment = Alignment(wrap_text=True, vertical='top')
             
-            # Summary sheet
             sections_with_differences = len([r for r in comparison_results if 'Mismatch' in r.get('Observation - Category', '')])
             sections_without_differences = len(comparison_results) - sections_with_differences
-            
-            summary_data = {
-                'Metric': [
-                    'Total Sections Analyzed',
-                    'Sections with Content Differences',
-                    'Sections without Content Differences',
-                    'Document 1 Name (Filed Copy)',
-                    'Document 2 Name (Customer Copy)',
-                    'Comparison Date',
-                    'Analysis Type'
-                ],
-                'Value': [
-                    len(self.target_sections),
-                    sections_with_differences,
-                    sections_without_differences,
-                    doc1_name,
-                    doc2_name,
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    'Complete Section Analysis with Content Display'
-                ]
-            }
-            
-            summary_df = pd.DataFrame(summary_data)
-            summary_df.to_excel(writer, sheet_name='Summary', index=False)
-            
-            # Format summary sheet
-            summary_worksheet = writer.sheets['Summary']
-            for column in summary_worksheet.columns:
-                max_length = 0
-                column_letter = column[0].column_letter
-                
-                for cell in column:
-                    try:
-                        if cell.value:
-                            max_length = max(max_length, len(str(cell.value)))
-                    except:
-                        pass
-                
-                adjusted_width = min(max_length + 2, 80)
-                summary_worksheet.column_dimensions[column_letter].width = adjusted_width
-            
-            # Enable text wrapping for summary sheet
-            for row in summary_worksheet.iter_rows():
-                for cell in row:
-                    cell.alignment = Alignment(wrap_text=True, vertical='top')
         
         output.seek(0)
         return output.getvalue()
