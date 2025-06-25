@@ -61,61 +61,62 @@ class DocumentComparer:
     def filter_sections_with_llm(self, document_text: str, doc_name: str) -> Dict[str, str]:
         system_prompt = """You are an expert document analyzer. Your task is to extract specific sections from legal/business documents.
 
-    Target sections and instructions:
+Target sections and instructions:
 
-    1. FORWARDING LETTER:
-       - Look for the beginning of the document where a subject line like "Sub: Issuance..." is mentioned — this usually starts the forwarding.
-       - Look for end phrases like "Disclaimer: In case of dispute, English version..." or a sentence signaling end of letter.
-       - Extract everything in between, even if the wording differs slightly.
-       - Generally the first page
+1. FORWARDING LETTER:
+   - Look for the beginning of the document where a subject line like "Sub: Issuance..." is mentioned — this usually starts the forwarding.
+   - Look for end phrases like "Disclaimer: In case of dispute, English version..." or a sentence signaling end of letter.
+   - Extract everything in between, even if the wording differs slightly.
+   - Generally the first page
 
-    2. PREAMBLE:
-       - Look for a section labeled "PREAMBLE" or similar — match approximate variants.
+2. PREAMBLE:
+   - Look for a section labeled "PREAMBLE" or similar — match approximate variants.
 
-    3. SCHEDULE:
-       - Look for a section labeled "SCHEDULE" or similar — match approximate variants.
+3. SCHEDULE:
+   - Look for a section labeled "SCHEDULE" or similar — match approximate variants.
 
-    4. DEFINITIONS & ABBREVIATIONS:
-       - Locate section titled "DEFINITIONS", "ABBREVIATIONS", or similar — approximate matches are fine.
+4. DEFINITIONS & ABBREVIATIONS:
+   - Locate section titled "DEFINITIONS", "ABBREVIATIONS", or similar — approximate matches are fine.
 
-    Instructions:
-    - Do not be strict with exact matching.
-    - Case, small wording variations, or punctuation should not block detection.
-    - Return full section text.
-    - If nothing close is found, return "NOT FOUND".
-    """
+Instructions:
+- Do not be strict with exact matching.
+- Case, small wording variations, or punctuation should not block detection.
+- Return full section text.
+- If nothing close is found, return "NOT FOUND".
+"""
 
         user_prompt = f"""Please analyze the following document and extract the target sections:
 
-    Document Name: {doc_name}
+Document Name: {doc_name}
 
-    Document Content:
-    {document_text}
+Document Content:
+{document_text}
 
-    Extract the sections and return as JSON format:
-    {{
-      \"FORWARDING LETTER\": \"extracted content or NOT FOUND\",
-      \"PREAMBLE\": \"extracted content or NOT FOUND\",
-      \"SCHEDULE\": \"extracted content or NOT FOUND\",
-      \"DEFINITIONS & ABBREVIATIONS\": \"extracted content or NOT FOUND\"
-    }}
-    """
+Extract the sections and return as JSON format:
+{{
+  \"FORWARDING LETTER\": \"extracted content or NOT FOUND\",
+  \"PREAMBLE\": \"extracted content or NOT FOUND\",
+  \"SCHEDULE\": \"extracted content or NOT FOUND\",
+  \"DEFINITIONS & ABBREVIATIONS\": \"extracted content or NOT FOUND\"
+}}
+"""
+        
         try:
             messages = [
                 SystemMessage(content=system_prompt),
                 HumanMessage(content=user_prompt)
             ]
-        
+            
             # Debug output with correct document name
             st.write(f"Sending to LLM ({doc_name}):\n{user_prompt[:500]}...")
-        
+            
             # Make the LLM call
             response = self.llm.invoke(messages)
-        
-        # Debug: Show response
+            
+            # Debug: Show response
             st.write(f"LLM Response for {doc_name}: {response.content[:500]}...")
-        
-        # Try to extract JSON from response
+            
+            # Try to extract JSON from response
             json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
             if json_match:
                 try:
@@ -130,11 +131,11 @@ class DocumentComparer:
                 logger.warning(f"Could not find JSON in LLM response for {doc_name}")
                 st.warning(f"No JSON found in response for {doc_name}, using fallback method")
                 return self._fallback_section_extraction(document_text)
-            
+                
         except Exception as e:
             logger.error(f"Error in LLM section filtering for {doc_name}: {str(e)}")
             st.error(f"LLM call failed for {doc_name}: {str(e)}")
-        
+            
             # Use fallback method when LLM fails
             st.info(f"Using fallback section extraction for {doc_name}")
             return self._fallback_section_extraction(document_text)
