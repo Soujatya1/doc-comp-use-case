@@ -78,8 +78,6 @@ Target sections and instructions:
 4. DEFINITIONS & ABBREVIATIONS:
    - Locate section titled "DEFINITIONS", "ABBREVIATIONS", or similar — approximate matches are fine.
 
-
-
 Instructions:
 - Do not be strict with exact matching.
 - Case, small wording variations, or punctuation should not block detection.
@@ -87,7 +85,7 @@ Instructions:
 - If nothing close is found, return "NOT FOUND".
 """
 
-        user_prompt = f"""Please analyze the following document and extract the target sections:
+    user_prompt = f"""Please analyze the following document and extract the target sections:
 
 Document Name: {doc_name}
 
@@ -102,25 +100,45 @@ Extract the sections and return as JSON format:
   \"DEFINITIONS & ABBREVIATIONS\": \"extracted content or NOT FOUND\"
 }}
 """
-        
+    
         try:
             messages = [
                 SystemMessage(content=system_prompt),
                 HumanMessage(content=user_prompt)
             ]
-
-            st.write(f"Sending to LLM ({doc_name}):\n{user_prompt[:2000]}")
-            st.write(f"LLM Response for {doc_name}: {response.content[:500]}")
+        
+            # Debug output with correct document name
+            st.write(f"Sending to LLM ({doc_name}):\n{user_prompt[:500]}...")
+        
+            # Make the LLM call
             response = self.llm.invoke(messages)
+        
+        # Debug: Show response
+            st.write(f"LLM Response for {doc_name}: {response.content[:500]}...")
+        
+        # Try to extract JSON from response
             json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
             if json_match:
-                return json.loads(json_match.group())
+                try:
+                    sections = json.loads(json_match.group())
+                    st.write(f"Successfully parsed sections for {doc_name}: {list(sections.keys())}")
+                    return sections
+                except json.JSONDecodeError as json_error:
+                    logger.error(f"JSON parsing error for {doc_name}: {str(json_error)}")
+                    st.error(f"JSON parsing failed for {doc_name}: {str(json_error)}")
+                    return self._fallback_section_extraction(document_text)
             else:
-                logger.warning("Could not parse JSON from LLM response")
-                return {}
+                logger.warning(f"Could not find JSON in LLM response for {doc_name}")
+                st.warning(f"No JSON found in response for {doc_name}, using fallback method")
+                return self._fallback_section_extraction(document_text)
+            
         except Exception as e:
-            logger.error(f"Error in LLM section filtering: {str(e)}")
-            return {}
+            logger.error(f"Error in LLM section filtering for {doc_name}: {str(e)}")
+            st.error(f"LLM call failed for {doc_name}: {str(e)}")
+        
+            # Use fallback method when LLM fails
+            st.info(f"Using fallback section extraction for {doc_name}")
+            return self._fallback_section_extraction(document_text)
     
     def _fallback_section_extraction(self, text: str) -> Dict[str, str]:
         """Fallback method for section extraction using regex."""
