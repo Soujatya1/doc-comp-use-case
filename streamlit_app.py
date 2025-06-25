@@ -102,6 +102,7 @@ Extract the sections and return as JSON format:
 """
         
         try:
+            llm_with_json = self.llm.bind(response_format={"type": "json_object"})
             messages = [
                 SystemMessage(content=system_prompt),
                 HumanMessage(content=user_prompt)
@@ -111,7 +112,7 @@ Extract the sections and return as JSON format:
             st.write(f"Sending to LLM ({doc_name}):\n{user_prompt[:500]}...")
             
             # Make the LLM call
-            response = self.llm.invoke(messages)
+            response = self.llm_with_json.invoke(messages)
             
             # Debug: Show response
             st.write(f"LLM Response for {doc_name}: {response.content[:500]}...")
