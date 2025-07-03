@@ -4,9 +4,10 @@ import PyPDF2
 import io
 from langchain_openai import AzureChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
+from langchain.prompts import PromptTemplate
 import json
 import re
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 import logging
 from datetime import datetime
 
@@ -24,34 +25,27 @@ class DocumentComparer:
             max_tokens=4000
         )
 
-        self.section_headers = [
+        self.target_sections = [
             "FORWARDING LETTER",
-            "PREAMBLE", 
+            "PREAMBLE",
             "SCHEDULE",
             "DEFINITIONS & ABBREVIATIONS"
         ]
         
-        # Alternative headers for flexible matching
-        self.header_variations = {
-            "FORWARDING LETTER": [
-                "FORWARDING LETTER", "COVERING LETTER", "TRANSMITTAL LETTER",
-                "LETTER", "SUB:", "SUBJECT:", "REF:"
-            ],
-            "PREAMBLE": [
-                "PREAMBLE", "WHEREAS", "NOW THEREFORE", "WITNESSETH"
-            ],
-            "SCHEDULE": [
-                "SCHEDULE", "ANNEXURE", "ATTACHMENT", "EXHIBIT", 
-                "DETAILS", "PARTICULARS"
-            ],
-            "DEFINITIONS & ABBREVIATIONS": [
-                "DEFINITIONS & ABBREVIATIONS", "DEFINITIONS AND ABBREVIATIONS",
-                "DEFINITIONS", "ABBREVIATIONS", "GLOSSARY", "TERMS"
-            ]
-        }
+        # Define section headers for header identification
+        self.SECTION_HEADERS = [
+            "FORWARDING LETTER",
+            "PREAMBLE", 
+            "SCHEDULE",
+            "DEFINITIONS & ABBREVIATIONS",
+            "DEFINITIONS",
+            "ABBREVIATIONS"
+        ]
+        
+        self.max_input_chars = 12000
+        self.chunk_size = 8000
 
     def extract_text_from_pdf(self, pdf_file) -> str:
-        """Extract text from PDF file"""
         try:
             pdf_reader = PyPDF2.PdfReader(pdf_file)
             text = ""
@@ -63,7 +57,6 @@ class DocumentComparer:
             return ""
 
     def extract_sample_number_from_filename(self, filename: str) -> str:
-        """Extract sample number from filename"""
         patterns = [
             r'(\d{10})__Sample_\d+_',
             r'(\d{8,})__Sample',
@@ -77,163 +70,97 @@ class DocumentComparer:
     
         return "001"
 
-    def normalize_text_for_matching(self, text: str) -> str:
-        """Normalize text for better header matching"""
-        # Remove extra whitespace and normalize
-        text = re.sub(r'\s+', ' ', text.strip())
-        # Remove special characters that might interfere
-        text = re.sub(r'[^\w\s&:.]', ' ', text)
-        return text.upper()
-
-    def find_section_boundaries(self, text: str, doc_type: str = "filed") -> Dict[str, Tuple[int, int]]:
-        """
-        Find start and end positions of each section in the document
-        Returns dict with section_name: (start_pos, end_pos)
-        """
-        normalized_text = self.normalize_text_for_matching(text)
-        section_positions = {}
+    def extract_sections(self, text):
+        """Extract sections using header identification method"""
+        sections = {}
+        current_section = None
         
-        # Find all potential header positions
-        all_headers_found = []
+        for line in text.splitlines():
+            line_stripped = line.strip().upper()
+            if line_stripped in self.SECTION_HEADERS:
+                current_section = line_stripped
+                sections[current_section] = []
+            elif current_section:
+                sections[current_section].append(line)
         
-        for section_name, variations in self.header_variations.items():
-            for variation in variations:
-                variation_normalized = self.normalize_text_for_matching(variation)
-                
-                # Find all occurrences of this variation
-                start_pos = 0
-                while True:
-                    pos = normalized_text.find(variation_normalized, start_pos)
-                    if pos == -1:
-                        break
-                    
-                    # Check if it's likely a section header (at start of line or after significant whitespace)
-                    if pos == 0 or normalized_text[pos-1] in ['\n', ' ']:
-                        # Check if it's not just part of a larger word
-                        end_pos = pos + len(variation_normalized)
-                        if end_pos >= len(normalized_text) or normalized_text[end_pos] in ['\n', ' ', ':', '.']:
-                            all_headers_found.append((pos, section_name, variation))
-                    
-                    start_pos = pos + 1
-        
-        # Sort headers by position
-        all_headers_found.sort(key=lambda x: x[0])
-        
-        # Remove duplicates (keep the first occurrence of each section)
-        seen_sections = set()
-        unique_headers = []
-        for pos, section_name, variation in all_headers_found:
-            if section_name not in seen_sections:
-                unique_headers.append((pos, section_name, variation))
-                seen_sections.add(section_name)
-        
-        # Determine section boundaries
-        for i, (start_pos, section_name, variation) in enumerate(unique_headers):
-            # Find end position (start of next section or end of document)
-            if i + 1 < len(unique_headers):
-                end_pos = unique_headers[i + 1][0]
+        # Convert lists to strings and normalize section names
+        result_sections = {}
+        for k, v in sections.items():
+            content = "\n".join(v).strip()
+            # Normalize section names to match target_sections
+            if k in ["DEFINITIONS", "ABBREVIATIONS"]:
+                result_sections["DEFINITIONS & ABBREVIATIONS"] = content
             else:
-                end_pos = len(normalized_text)
-            
-            section_positions[section_name] = (start_pos, end_pos)
-        
-        # Special handling for FORWARDING LETTER in customer copy
-        if doc_type == "customer" and "FORWARDING LETTER" in section_positions:
-            forwarding_start, _ = section_positions["FORWARDING LETTER"]
-            
-            # Find where PREAMBLE starts to end FORWARDING LETTER
-            if "PREAMBLE" in section_positions:
-                preamble_start, preamble_end = section_positions["PREAMBLE"]
-                section_positions["FORWARDING LETTER"] = (forwarding_start, preamble_start)
-            else:
-                # If no PREAMBLE found, look for other indicators
-                # Search for common forwarding letter end patterns
-                forwarding_text = normalized_text[forwarding_start:]
-                end_patterns = [
-                    "DISCLAIMER", "IN CASE OF DISPUTE", "ENGLISH VERSION",
-                    "REGARDS", "YOURS FAITHFULLY", "SINCERELY"
-                ]
+                result_sections[k] = content
                 
-                min_end_pos = len(normalized_text)
-                for pattern in end_patterns:
-                    pattern_pos = forwarding_text.find(pattern)
-                    if pattern_pos != -1:
-                        # Find end of this pattern (next line break or end)
-                        pattern_end = forwarding_text.find('\n', pattern_pos)
-                        if pattern_end == -1:
-                            pattern_end = len(forwarding_text)
-                        actual_end_pos = forwarding_start + pattern_end
-                        min_end_pos = min(min_end_pos, actual_end_pos)
-                
-                if min_end_pos < len(normalized_text):
-                    section_positions["FORWARDING LETTER"] = (forwarding_start, min_end_pos)
-        
-        return section_positions
+        return result_sections
 
-    def extract_section_content(self, text: str, section_name: str, start_pos: int, end_pos: int) -> str:
-        """Extract the actual content of a section given its boundaries"""
-        if start_pos >= len(text) or end_pos <= start_pos:
-            return "NOT FOUND"
-        
-        # Extract the section content
-        section_content = text[start_pos:end_pos].strip()
-        
-        if not section_content:
-            return "NOT FOUND"
-        
-        # Clean up the content
-        # Remove excessive whitespace
-        section_content = re.sub(r'\n\s*\n', '\n\n', section_content)
-        section_content = re.sub(r' +', ' ', section_content)
-        
-        return section_content
-
-    def extract_sections_with_python(self, document_text: str, doc_name: str, doc_type: str = "filed") -> Dict[str, str]:
-        """
-        Extract sections using Python-based header identification
-        doc_type: "filed" or "customer"
-        """
+    def extract_forwarding_letter_section_filed(self, text):
+        """Special case: FORWARDING LETTER extraction from Filed Copy"""
+        lines = text.splitlines()
         try:
-            st.info(f"Extracting sections from {doc_name} using Python header identification...")
+            start_idx = next(i for i, line in enumerate(lines) if line.strip().upper() == "FORWARDING LETTER")
+            end_idx = next(i for i, line in enumerate(lines[start_idx+1:], start=start_idx+1)
+                          if line.strip().upper() in self.SECTION_HEADERS and line.strip().upper() != "FORWARDING LETTER")
+            return "\n".join(lines[start_idx:end_idx]).strip()
+        except StopIteration:
+            return "FORWARDING LETTER section not found in Filed Copy."
+
+    def extract_forwarding_letter_section_customer(self, text):
+        """Special case: FORWARDING LETTER extraction from Customer Copy"""
+        lines = text.splitlines()
+        try:
+            end_idx = next(i for i, line in enumerate(lines) if line.strip().upper() == "PREAMBLE")
+            return "\n".join(lines[:end_idx]).strip()
+        except StopIteration:
+            return "PREAMBLE section not found in Customer Copy; cannot extract FORWARDING LETTER."
+
+    def extract_sections_with_python(self, document_text: str, doc_name: str, is_filed_copy: bool = True) -> Dict[str, str]:
+        """Extract sections using Python header identification methods"""
+        try:
+            st.info(f"Extracting sections from {doc_name} using header identification...")
             
-            # Find section boundaries
-            section_boundaries = self.find_section_boundaries(document_text, doc_type)
+            # Extract general sections
+            sections = self.extract_sections(document_text)
             
-            # Extract content for each target section
-            extracted_sections = {}
+            # Handle FORWARDING LETTER specially based on document type
+            if is_filed_copy:
+                forwarding_letter = self.extract_forwarding_letter_section_filed(document_text)
+            else:
+                forwarding_letter = self.extract_forwarding_letter_section_customer(document_text)
             
-            for section_name in self.section_headers:
-                if section_name in section_boundaries:
-                    start_pos, end_pos = section_boundaries[section_name]
-                    content = self.extract_section_content(document_text, section_name, start_pos, end_pos)
-                    extracted_sections[section_name] = content
-                    
-                    st.write(f"✅ Found {section_name}: {len(content)} characters")
+            sections["FORWARDING LETTER"] = forwarding_letter
+            
+            # Ensure all target sections are present
+            final_sections = {}
+            for section in self.target_sections:
+                if section in sections and sections[section]:
+                    final_sections[section] = sections[section]
                 else:
-                    extracted_sections[section_name] = "NOT FOUND"
-                    st.write(f"❌ {section_name}: NOT FOUND")
+                    final_sections[section] = "NOT FOUND"
             
-            return extracted_sections
+            st.success(f"Successfully extracted sections from {doc_name}")
+            logger.info(f"Extracted sections from {doc_name}: {list(final_sections.keys())}")
+            
+            return final_sections
             
         except Exception as e:
-            logger.error(f"Error in Python section extraction for {doc_name}: {str(e)}")
-            st.error(f"Error extracting sections from {doc_name}: {str(e)}")
-            
-            # Return default structure
-            return {section: "NOT FOUND" for section in self.section_headers}
+            logger.error(f"Error extracting sections from {doc_name}: {str(e)}")
+            # Return default structure if extraction fails
+            return {section: "NOT FOUND" for section in self.target_sections}
 
     def compare_documents_with_llm(self, doc1_sections: Dict[str, str], doc2_sections: Dict[str, str], 
                                doc1_name: str, doc2_name: str, sample_number: str) -> List[Dict]:
-        """Compare documents using LLM analysis"""
+    
         comparison_results = []
 
-        for section in self.section_headers:
+        for section in self.target_sections:
             doc1_content = doc1_sections.get(section, "NOT FOUND")
             doc2_content = doc2_sections.get(section, "NOT FOUND")
 
             total_content_size = len(doc1_content) + len(doc2_content)
             
-            if total_content_size > 8000:
+            if total_content_size > 8000:  # If combined content is too large
                 # Truncate content for comparison but keep full content for display
                 doc1_truncated = doc1_content[:3000] if doc1_content != "NOT FOUND" else "NOT FOUND"
                 doc2_truncated = doc2_content[:3000] if doc2_content != "NOT FOUND" else "NOT FOUND"
@@ -242,7 +169,7 @@ class DocumentComparer:
                 
                 comparison_result = self._compare_section_content(
                     doc1_truncated, doc2_truncated, section, sample_number, 
-                    doc1_content, doc2_content
+                    doc1_content, doc2_content  # Pass full content for display
                 )
             else:
                 comparison_result = self._compare_section_content(
@@ -256,7 +183,6 @@ class DocumentComparer:
     def _compare_section_content(self, doc1_content: str, doc2_content: str, section: str, 
                                sample_number: str, full_doc1_content: str = None, 
                                full_doc2_content: str = None) -> Dict:
-        """Compare content of a specific section using LLM"""
         
         display_doc1 = full_doc1_content if full_doc1_content is not None else doc1_content
         display_doc2 = full_doc2_content if full_doc2_content is not None else doc2_content
@@ -318,7 +244,6 @@ Respond only with the final response after understanding and following the above
             }
     
     def _get_page_name(self, section: str) -> str:
-        """Get display name for section"""
         section_mapping = {
             "FORWARDING LETTER": "Forwarding letter",
             "PREAMBLE": "Preamble", 
@@ -329,7 +254,6 @@ Respond only with the final response after understanding and following the above
     
     def _create_section_result(self, response_content: str, section: str, doc1_content: str, 
                              doc2_content: str, sample_number: str) -> Dict:
-        """Create structured result for a section comparison"""
         
         no_diff_indicators = [
             "NO_CONTENT_DIFFERENCE",
@@ -384,6 +308,7 @@ Respond only with the final response after understanding and following the above
             }
         
         if has_differences:
+            # Parse the LLM response for meaningful differences
             sub_category = self._parse_difference_description(response_content, section)
             observation_category = 'Mismatch of content between Filed Copy and customer copy'
         else:
@@ -399,7 +324,6 @@ Respond only with the final response after understanding and following the above
         }
     
     def _prepare_content_display(self, doc1_content: str, doc2_content: str, section: str) -> str:
-        """Prepare content for display in results"""
         
         if doc1_content == doc2_content and doc1_content != "NOT FOUND":
             content = doc1_content
@@ -424,7 +348,6 @@ Respond only with the final response after understanding and following the above
         return "\n\n".join(result_parts)
     
     def _parse_difference_description(self, response_content: str, section: str) -> str:
-        """Parse and clean the difference description from LLM response"""
 
         sub_category = response_content.strip()
 
@@ -469,14 +392,15 @@ Respond only with the final response after understanding and following the above
         if sub_category and len(sub_category) > 0:
             sub_category = sub_category[0].upper() + sub_category[1:]
 
+        # Default if too generic or short
         if len(sub_category) < 10:
             sub_category = f"Meaningful content differences identified in section {section}"
 
         return sub_category
 
+    
     def create_excel_report(self, comparison_results: List[Dict], doc1_name: str, doc2_name: str) -> bytes:
-        """Create Excel report from comparison results"""
-        
+    
         df = pd.DataFrame(comparison_results)
     
         if not df.empty:
@@ -494,8 +418,8 @@ Respond only with the final response after understanding and following the above
                 from openpyxl.styles import Alignment
             
                 total_rows = len(df)
-                if total_rows > 1:
-                    start_row = 2
+                if total_rows > 1:  # Only merge if there's more than 1 row
+                    start_row = 2  # Row 2 (after header)
                     end_row = total_rows + 1
                 
                     merge_range = f'B{start_row}:B{end_row}'
@@ -507,10 +431,25 @@ Respond only with the final response after understanding and following the above
                 for column in worksheet.columns:
                     max_length = 0
                     column_letter = column[0].column_letter
+                
+                    for cell in column:
+                        try:
+                            if len(str(cell.value)) > max_length:
+                                max_length = len(str(cell.value))
+                        except:
+                            pass
+                
+                    adjusted_width = min(max_length + 2, 50)  # Cap at 50 characters
+                    worksheet.column_dimensions[column_letter].width = adjusted_width
+                
+                for column in worksheet.columns:
+                    max_length = 0
+                    column_letter = column[0].column_letter
                     
                     for cell in column:
                         try:
                             if cell.value:
+                                # Handle different columns specially
                                 if column_letter == 'D':
                                     max_length = max(max_length, min(len(str(cell.value)), 80))
                                 elif column_letter == 'E':
@@ -533,19 +472,22 @@ Respond only with the final response after understanding and following the above
                     for cell in row:
                         if not cell.coordinate.startswith('B') or cell.row == 1:
                             cell.alignment = Alignment(wrap_text=True, vertical='top')
+            
+            sections_with_differences = len([r for r in comparison_results if 'Mismatch' in r.get('Observation - Category', '')])
+            sections_without_differences = len(comparison_results) - sections_with_differences
         
         output.seek(0)
         return output.getvalue()
 
 def main():
     st.set_page_config(
-        page_title="Document Comparer with Python Section Extraction",
+        page_title="Enhanced Document Comparer with Header-Based Extraction",
         page_icon="📄",
         layout="wide"
     )
     
-    st.title("📄 Document Comparer with Python Section Extraction")
-    st.markdown("Upload two PDF documents to compare specific sections using **Python-based header identification**")
+    st.title("📄 Enhanced Document Comparer with Header-Based Extraction")
+    st.markdown("Upload two PDF documents to compare specific sections using **Python header identification** methods")
     
     # Sidebar for Azure OpenAI configuration
     with st.sidebar:
@@ -583,12 +525,12 @@ def main():
         st.markdown("• Definitions & Abbreviations")
         
         st.markdown("---")
-        st.markdown("**New Features:**")
-        st.markdown("✅ Python-based section extraction")
-        st.markdown("✅ Header pattern matching")
-        st.markdown("✅ Special handling for customer copy")
-        st.markdown("✅ Flexible header variations")
-        st.markdown("✅ LLM-based content comparison")
+        st.markdown("**Extraction Method:**")
+        st.markdown("🐍 **Python Header Identification**")
+        st.markdown("✅ Fast header-based extraction")
+        st.markdown("✅ Special handling for Forwarding Letter")
+        st.markdown("✅ AI-powered content comparison")
+        st.markdown("✅ Complete content display")
     
     # Main interface
     col1, col2 = st.columns(2)
@@ -616,7 +558,7 @@ def main():
             st.success(f"✅ {doc2_file.name} uploaded successfully")
     
     # Process documents
-    if st.button("🔍 Analyze with Python Section Extraction", type="primary"):
+    if st.button("🔍 Analyze Sections with Header Identification", type="primary"):
         if not all([azure_endpoint, api_key, deployment_name]):
             st.error("❌ Please provide all Azure OpenAI configuration details")
             return
@@ -647,28 +589,26 @@ def main():
                 # Extract sample number from document 2 (Customer Copy)
                 sample_number = comparer.extract_sample_number_from_filename(doc2_file.name)
                 
-                # Extract sections using Python-based method
+                # Extract sections using Python header identification
                 st.info("🐍 Extracting sections using Python header identification...")
+                doc1_sections = comparer.extract_sections_with_python(doc1_text, doc1_file.name, is_filed_copy=True)
+                logger.info("📄 Filed Copy Extracted Sections:\n" + json.dumps(doc1_sections, indent=2))
+                doc2_sections = comparer.extract_sections_with_python(doc2_text, doc2_file.name, is_filed_copy=False)
+                logger.info("📄 Customer Copy Extracted Sections:\n" + json.dumps(doc2_sections, indent=2))
                 
-                with st.expander("Filed Copy Section Extraction"):
-                    doc1_sections = comparer.extract_sections_with_python(doc1_text, doc1_file.name, "filed")
-                
-                with st.expander("Customer Copy Section Extraction"):
-                    doc2_sections = comparer.extract_sections_with_python(doc2_text, doc2_file.name, "customer")
-                
-                # Compare documents using LLM
-                st.info("🔍 Comparing extracted sections with AI analysis...")
+                # Compare documents using LLM (content comparison only)
+                st.info("🔍 Analyzing sections with AI comparison...")
                 comparison_results = comparer.compare_documents_with_llm(
                     doc1_sections, doc2_sections, doc1_file.name, doc2_file.name, sample_number
                 )
                 
                 # Create Excel report
-                st.info("📊 Generating Excel report...")
+                st.info("📊 Generating comprehensive Excel report...")
                 excel_data = comparer.create_excel_report(
                     comparison_results, doc1_file.name, doc2_file.name
                 )
             
-            st.success("✅ Document analysis completed successfully with Python section extraction!")
+            st.success("✅ Document analysis with header-based extraction completed successfully!")
             
             # Display results
             st.subheader("📊 Analysis Results")
@@ -680,7 +620,7 @@ def main():
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
-                st.metric("Total Sections Analyzed", len(comparer.section_headers))
+                st.metric("Total Sections Analyzed", len(comparer.target_sections))
             
             with col2:
                 st.metric("Sections with Differences", sections_with_differences)
@@ -691,49 +631,29 @@ def main():
             with col4:
                 st.metric("Sample Number", sample_number)
             
-            # Show extracted sections
-            st.subheader("📋 Extracted Sections Preview")
-            
-            for section in comparer.section_headers:
-                with st.expander(f"{section} - Content Preview"):
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.write("**Filed Copy:**")
-                        filed_content = doc1_sections.get(section, "NOT FOUND")
-                        if filed_content != "NOT FOUND":
-                            st.text_area("", filed_content[:500] + ("..." if len(filed_content) > 500 else ""), height=150, disabled=True)
-                        else:
-                            st.warning("NOT FOUND")
-                    
-                    with col2:
-                        st.write("**Customer Copy:**")
-                        customer_content = doc2_sections.get(section, "NOT FOUND")
-                        if customer_content != "NOT FOUND":
-                            st.text_area("", customer_content[:500] + ("..." if len(customer_content) > 500 else ""), height=150, disabled=True, key=f"customer_{section}")
-                        else:
-                            st.warning("NOT FOUND")
-            
             # Detailed results table
-            st.subheader("📋 Comparison Results")
+            st.subheader("📋 Complete Section Analysis")
             df_display = pd.DataFrame(comparison_results)
             
-            # Create a display version without the full content
+            # Create a display version without the full content for better viewing
             df_display_short = df_display.copy()
             df_display_short['Content (Preview)'] = df_display_short['Content'].apply(
                 lambda x: x[:200] + "..." if len(str(x)) > 200 else x
             )
             
+            # Show table without full content column for better display
             display_columns = ['Samples affected', 'Observation - Category', 'Page', 'Sub-category of Observation', 'Content (Preview)']
             st.dataframe(df_display_short[display_columns], use_container_width=True)
             
+            st.info("ℹ️ **Note**: Complete content is available in the downloadable Excel report. Preview shows first 200 characters.")
+            
             # Download Excel report
-            st.subheader("📥 Download Report")
+            st.subheader("📥 Download Complete Report")
             st.download_button(
-                label="📊 Download Complete Analysis Report",
+                label="📊 Download Complete Analysis with Content",
                 data=excel_data,
-                file_name=f"python_extraction_analysis_{sample_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                file_name=f"header_based_analysis_{sample_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                mime="application/vnd.openxmlformats-officeedocument.spreadsheetml.sheet"
             )
             
         except Exception as e:
