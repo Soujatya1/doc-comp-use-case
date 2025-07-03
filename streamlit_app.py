@@ -324,27 +324,34 @@ Respond only with the final response after understanding and following the above
         }
     
     def _prepare_content_display(self, doc1_content: str, doc2_content: str, section: str) -> str:
+    
+        def format_content_preview(content: str) -> str:
+            """Format content to show first 100 and last 50 characters"""
+            if content == "NOT FOUND":
+                return content
         
+            content = content.strip()
+            if len(content) <= 150:  # If total length is less than 150, show full content
+                return content
+        
+            first_part = content[:100]
+            last_part = content[-50:]
+            return f"{first_part}... [Content truncated] ...{last_part}"
+    
         if doc1_content == doc2_content and doc1_content != "NOT FOUND":
-            content = doc1_content
-            if len(content) > 1000:
-                content = content[:1000] + "... [Content truncated for display]"
-            return f"[IDENTICAL CONTENT]\n{content}"
-        
+            formatted_content = format_content_preview(doc1_content)
+            return f"[IDENTICAL CONTENT]\n{formatted_content}"
+    
         result_parts = []
-        
+    
         if doc1_content != "NOT FOUND":
-            filed_content = doc1_content
-            if len(filed_content) > 500:
-                filed_content = filed_content[:500] + "... [Truncated]"
+            filed_content = format_content_preview(doc1_content)
             result_parts.append(f"[FILED COPY]\n{filed_content}")
-        
+    
         if doc2_content != "NOT FOUND":
-            customer_content = doc2_content
-            if len(customer_content) > 500:
-                customer_content = customer_content[:500] + "... [Truncated]"
+            customer_content = format_content_preview(doc2_content)
             result_parts.append(f"[CUSTOMER COPY]\n{customer_content}")
-        
+    
         return "\n\n".join(result_parts)
     
     def _parse_difference_description(self, response_content: str, section: str) -> str:
