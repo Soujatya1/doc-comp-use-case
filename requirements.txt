@@ -4,3 +4,4 @@ PyPDF2
 pandas
 openpyxl
 langchain
+pdfplumber
