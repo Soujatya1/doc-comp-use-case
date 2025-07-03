@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import PyPDF2
+import pdfplumber
 import io
 from langchain_openai import AzureChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
@@ -47,10 +47,10 @@ class DocumentComparer:
 
     def extract_text_from_pdf(self, pdf_file) -> str:
         try:
-            pdf_reader = PyPDF2.PdfReader(pdf_file)
             text = ""
-            for page in pdf_reader.pages:
-                text += page.extract_text() + "\n"
+            with pdfplumber.open(pdf_file) as pdf:
+                for page in pdf.pages:
+                    text += page.extract_text() + "\n"
             return text
         except Exception as e:
             logger.error(f"Error extracting text from PDF: {str(e)}")
