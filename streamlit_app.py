@@ -61,55 +61,68 @@ class DocumentComparer:
         self.chunk_size = 8000
 
     def clean_text_for_comparison(self, text: str) -> str:
-    
+
         if not text or text == "NOT FOUND":
             return text
     
-        # Method 1: Remove text between < and > including the brackets
-        # This handles most cases including multiline content
-        cleaned_text = re.sub(r'<[^<>]*>', '', text, flags=re.DOTALL)
+        cleaned_text = text
     
-    # Method 2: Handle potential nested or malformed brackets
-    # Keep removing until no more patterns are found
-        prev_length = len(cleaned_text)
-        while True:
+        cleaned_text = re.sub(r'<[^<>]*>', '', cleaned_text, flags=re.DOTALL)
+    
+        iteration = 0
+    
+        while iteration < max_iterations:
+            prev_length = len(cleaned_text)
+        
         # Remove any remaining < ... > patterns
             cleaned_text = re.sub(r'<[^<>]*>', '', cleaned_text)
         
-        # Remove standalone < or > that might be left
-            cleaned_text = re.sub(r'<[^>]*$', '', cleaned_text)  # Remove incomplete opening brackets
-            cleaned_text = re.sub(r'^[^<]*>', '', cleaned_text)  # Remove incomplete closing brackets
+        # Remove incomplete patterns (in case of malformed brackets)
+            cleaned_text = re.sub(r'<[^>]*, '', cleaned_text)
+            cleaned_text = re.sub(r'^[^<]*>', '', cleaned_text)
         
         # If no changes were made, we're done
             if len(cleaned_text) == prev_length:
                 break
-            prev_length = len(cleaned_text)
+            iteration += 1
     
-    # Method 3: Handle specific common patterns that might be missed
-    # Remove common placeholder patterns even if brackets are malformed
-        placeholder_patterns = [
-            r'<\s*x+\s*>',  # <xxxxxxxx> or < xxx >
+    # Method 3: Handle specific patterns that might be missed
+    # Target common placeholder patterns even if brackets are malformed
+        specific_patterns = [
             r'<\s*Name\s+of\s+the\s+Policyholder\s*>',  # <Name of the Policyholder>
+            r'<\s*Address\s+of\s+the\s+Policyholder\s*>',  # <Address of the Policyholder>
+            r'<\s*Mr\./Mrs\./Ms\.\s*>',  # <Mr./Mrs./Ms.>
             r'<\s*Mr\./Mrs\.\s*>',  # <Mr./Mrs.>
-            r'<\s*[A-Z][a-z]+\s+[A-Z][a-z]+\s*>',  # <First Last> patterns
-            r'<\s*[A-Z][a-z]*\.\s*>',  # <Mr.> <Mrs.> etc.
-            r'<\s*\w+\s+\w+\s*>',  # <word word> patterns
-            r'<\s*[^<>]+\s*>',  # Any remaining < content > patterns
-        ]
+            r'<\s*Your\s+Policy\s+requires[^<>]*>',  # <Your Policy requires...>
+            r'<\s*x+\s*>',  # <xxxxxxxx> patterns (any number of x's)
+            r'<\s*X+\s*>',  # <XXX> patterns (any number of X's)
+            r'<\s*[x]+\s*>',  # More x patterns
+            r'<\s*[X]+\s*>',  # More X patterns
+    ]
     
-        for pattern in placeholder_patterns:
+        for pattern in specific_patterns:
             cleaned_text = re.sub(pattern, '', cleaned_text, flags=re.IGNORECASE)
     
-    # Clean up extra whitespace that might be left after removal
-        cleaned_text = re.sub(r'\n\s*\n', '\n\n', cleaned_text)  # Replace multiple newlines with double newlines
-        cleaned_text = re.sub(r'[ \t]+', ' ', cleaned_text)  # Replace multiple spaces/tabs with single space
+    # Method 4: Final catch-all for any remaining bracket patterns
+    # This handles any remaining < ... > that might have been missed
+        cleaned_text = re.sub(r'<[^<>]*>', '', cleaned_text)
+    
+    # Clean up whitespace and formatting
+    # Replace multiple spaces/tabs with single space
+        cleaned_text = re.sub(r'[ \t]+', ' ', cleaned_text)
+    
+    # Clean up line breaks
         cleaned_text = re.sub(r'\n[ \t]+', '\n', cleaned_text)  # Remove leading whitespace from lines
         cleaned_text = re.sub(r'[ \t]+\n', '\n', cleaned_text)  # Remove trailing whitespace from lines
     
-    # Remove excessive blank lines (more than 2 consecutive newlines)
-        cleaned_text = re.sub(r'\n{3,}', '\n\n', cleaned_text)
+    # Handle multiple consecutive newlines
+        cleaned_text = re.sub(r'\n\s*\n', '\n\n', cleaned_text)  # Replace multiple newlines with double newlines
+        cleaned_text = re.sub(r'\n{3,}', '\n\n', cleaned_text)  # Remove excessive blank lines
     
-    # Final cleanup
+    # Clean up any remaining double spaces
+        cleaned_text = re.sub(r'  +', ' ', cleaned_text)
+    
+    # Final cleanup - remove leading/trailing whitespace
         cleaned_text = cleaned_text.strip()
     
         return cleaned_text
