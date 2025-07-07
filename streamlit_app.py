@@ -6,7 +6,7 @@ import os
 #from dotenv import load_dotenv
  
 st.set_page_config(layout="wide")
-load_dotenv()
+#load_dotenv()
  
 EXCLUDE_SECTIONS = [
     "First Premium Receipt",
