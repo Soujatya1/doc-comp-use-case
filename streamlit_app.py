@@ -37,7 +37,6 @@ class DocumentComparer:
             "ANNEXURE CC"
         ]
         
-        # Add section headers from second code
         self.section_headers = [
             "FORWARDING LETTER",
             "PREAMBLE",
@@ -61,91 +60,62 @@ class DocumentComparer:
         self.chunk_size = 8000
 
     def clean_text_for_comparison(self, text: str) -> str:
-        """
-        Remove text between < > brackets before comparison.
-        Handles various placeholder patterns like:
-        - <Name of the Policyholder>
-        - <Address of the Policyholder>
-        - <Mr./Mrs./Ms.>
-        - <XXX>
-        - <Your Policy requires_Premiums to be paid for <XX>
-        - <xxxxxxxxxxxxxxx>
-        - <xxxxxxxxxxxxx>
-        And other similar patterns
-        """
+
         if not text or text == "NOT FOUND":
             return text
         
-        # Make a copy to work with
         cleaned_text = text
         
-        # Method 1: Remove all content between < and > brackets
-        # This is the primary method and should handle most cases
+
         cleaned_text = re.sub(r'<[^<>]*>', '', cleaned_text, flags=re.DOTALL)
         
-        # Method 2: Handle nested brackets or complex patterns
-        # Keep removing until no more patterns are found
-        max_iterations = 10  # Prevent infinite loops
+        max_iterations = 10
         iteration = 0
         
         while iteration < max_iterations:
             prev_length = len(cleaned_text)
             
-            # Remove any remaining < ... > patterns
             cleaned_text = re.sub(r'<[^<>]*>', '', cleaned_text)
             
-            # Remove incomplete patterns (in case of malformed brackets)
-            cleaned_text = re.sub(r'<[^>]*$', '', cleaned_text)  # Remove incomplete opening brackets
-            cleaned_text = re.sub(r'^[^<]*>', '', cleaned_text)  # Remove incomplete closing brackets
+            cleaned_text = re.sub(r'<[^>]*$', '', cleaned_text)
+            cleaned_text = re.sub(r'^[^<]*>', '', cleaned_text)
             
-            # If no changes were made, we're done
             if len(cleaned_text) == prev_length:
                 break
             iteration += 1
-        
-        # Method 3: Handle specific patterns that might be missed
-        # Target common placeholder patterns even if brackets are malformed
+
         specific_patterns = [
-            r'<\s*Name\s+of\s+the\s+Policyholder\s*>',  # <Name of the Policyholder>
-            r'<\s*Address\s+of\s+the\s+Policyholder\s*>',  # <Address of the Policyholder>
-            r'<\s*Mr\./Mrs\./Ms\.\s*>',  # <Mr./Mrs./Ms.>
-            r'<\s*Mr\./Mrs\.\s*>',  # <Mr./Mrs.>
-            r'<\s*Your\s+Policy\s+requires[^<>]*>',  # <Your Policy requires...>
-            r'<\s*x+\s*>',  # <xxxxxxxx> patterns (any number of x's)
-            r'<\s*X+\s*>',  # <XXX> patterns (any number of X's)
-            r'<\s*[x]+\s*>',  # More x patterns
-            r'<\s*[X]+\s*>',  # More X patterns
+            r'<\s*Name\s+of\s+the\s+Policyholder\s*>',
+            r'<\s*Address\s+of\s+the\s+Policyholder\s*>',
+            r'<\s*Mr\./Mrs\./Ms\.\s*>',
+            r'<\s*Mr\./Mrs\.\s*>',
+            r'<\s*Your\s+Policy\s+requires[^<>]*>',
+            r'<\s*x+\s*>',
+            r'<\s*X+\s*>',
+            r'<\s*[x]+\s*>',
+            r'<\s*[X]+\s*>',
         ]
         
         for pattern in specific_patterns:
             cleaned_text = re.sub(pattern, '', cleaned_text, flags=re.IGNORECASE)
         
-        # Method 4: Final catch-all for any remaining bracket patterns
-        # This handles any remaining < ... > that might have been missed
         cleaned_text = re.sub(r'<[^<>]*>', '', cleaned_text)
         
-        # Clean up whitespace and formatting
-        # Replace multiple spaces/tabs with single space
         cleaned_text = re.sub(r'[ \t]+', ' ', cleaned_text)
         
-        # Clean up line breaks
-        cleaned_text = re.sub(r'\n[ \t]+', '\n', cleaned_text)  # Remove leading whitespace from lines
-        cleaned_text = re.sub(r'[ \t]+\n', '\n', cleaned_text)  # Remove trailing whitespace from lines
+        cleaned_text = re.sub(r'\n[ \t]+', '\n', cleaned_text)
+        cleaned_text = re.sub(r'[ \t]+\n', '\n', cleaned_text)
         
-        # Handle multiple consecutive newlines
-        cleaned_text = re.sub(r'\n\s*\n', '\n\n', cleaned_text)  # Replace multiple newlines with double newlines
-        cleaned_text = re.sub(r'\n{3,}', '\n\n', cleaned_text)  # Remove excessive blank lines
+        cleaned_text = re.sub(r'\n\s*\n', '\n\n', cleaned_text)
+        cleaned_text = re.sub(r'\n{3,}', '\n\n', cleaned_text)
         
-        # Clean up any remaining double spaces
         cleaned_text = re.sub(r'  +', ' ', cleaned_text)
         
-        # Final cleanup - remove leading/trailing whitespace
         cleaned_text = cleaned_text.strip()
         
         return cleaned_text
 
     def extract_text_from_pdf(self, pdf_file) -> str:
-        """Extract text from PDF using PyMuPDF instead of PyPDF2"""
         try:
             doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
             text = ""
@@ -172,12 +142,10 @@ class DocumentComparer:
         return "001"
 
     def is_image_only_page(self, page):
-        """Check if page contains only images"""
         text = page.get_text("text").strip()
         return not text and (page.get_images(full=True) or page.get_drawings())
 
     def extract_final_filtered_pdf(self, uploaded_file_bytes, is_customer_copy=False):
-        """Extract filtered PDF and text summary"""
         doc = fitz.open(stream=uploaded_file_bytes, filetype="pdf")
         filtered_doc = fitz.open()
         text_summary = ""
@@ -219,11 +187,9 @@ class DocumentComparer:
             return "", None
 
     def is_header_line(self, line):
-        """Check if line is a section header"""
         return line.strip().upper() in self.section_headers
 
     def extract_forwarding_letter_section_filed(self, text):
-        """Extract forwarding letter section from filed copy"""
         lines = text.splitlines()
         try:
             start_idx = next(i for i, line in enumerate(lines) if line.strip().upper() == "FORWARDING LETTER")
@@ -234,7 +200,6 @@ class DocumentComparer:
             return "FORWARDING LETTER section not found in Filed Copy."
 
     def extract_forwarding_letter_section_customer(self, text):
-        """Extract forwarding letter section from customer copy"""
         lines = text.splitlines()
         try:
             end_idx = next(i for i, line in enumerate(lines) if line.strip().upper() == "PREAMBLE")
@@ -243,7 +208,6 @@ class DocumentComparer:
             return "FORWARDING LETTER section not found in Customer Copy."
 
     def extract_schedule_section(self, text):
-        """Extract schedule section"""
         lines = text.splitlines()
         try:
             preamble_start = next(i for i, line in enumerate(lines) if line.strip().upper() == "PREAMBLE")
@@ -271,10 +235,8 @@ class DocumentComparer:
         return "\n".join(lines[schedule_start:end_idx]).strip()
 
     def extract_annexure_cc_section(self, text):
-        """Extract Annexure CC section"""
         lines = text.splitlines()
         try:
-            # Find the start of ANNEXURE CC
             annexure_cc_start = None
             for i, line in enumerate(lines):
                 if line.strip().upper() == "ANNEXURE CC":
@@ -286,11 +248,9 @@ class DocumentComparer:
         except StopIteration:
             return "ANNEXURE CC not found."
 
-        # Find the end of ANNEXURE CC section
         end_idx = None
         for j in range(annexure_cc_start, len(lines)):
             line_upper = lines[j].strip().upper()
-            # Stop at next section header (but not ANNEXURE CC itself)
             if "APPLICATION / PROPOSAL NO. WITH BARCODE" in line_upper:
                 end_idx = j
                 break
@@ -299,7 +259,6 @@ class DocumentComparer:
         return "\n".join(lines[annexure_cc_start:end_idx]).strip()
 
     def extract_sections(self, text):
-        """Extract all sections from text"""
         lines = text.splitlines()
         sections = {}
         header_positions = []
@@ -319,14 +278,11 @@ class DocumentComparer:
         return sections
 
     def filter_sections_with_rules(self, document_text: str, doc_name: str, is_customer_copy: bool = False) -> Dict[str, str]:
-        """Extract sections using rule-based approach instead of LLM"""
         try:
             st.info(f"Extracting sections from {doc_name} using rule-based approach...")
             
-            # Extract sections using the rule-based approach
             sections = self.extract_sections(document_text)
             
-            # Extract special sections
             if is_customer_copy:
                 sections["FORWARDING LETTER"] = self.extract_forwarding_letter_section_customer(document_text)
             else:
@@ -335,7 +291,6 @@ class DocumentComparer:
             sections["SCHEDULE"] = self.extract_schedule_section(document_text)
             sections["ANNEXURE CC"] = self.extract_annexure_cc_section(document_text)
             
-            # Filter only the target sections for comparison
             filtered_sections = {}
             for section in self.target_sections:
                 if section in sections:
@@ -348,7 +303,6 @@ class DocumentComparer:
             
         except Exception as e:
             logger.error(f"Error in rule-based section extraction for {doc_name}: {str(e)}")
-            # Return empty sections if extraction fails
             return {section: "NOT FOUND" for section in self.target_sections}
 
     def compare_documents_with_llm(self, doc1_sections: Dict[str, str], doc2_sections: Dict[str, str], 
@@ -360,30 +314,25 @@ class DocumentComparer:
             doc1_content = doc1_sections.get(section, "NOT FOUND")
             doc2_content = doc2_sections.get(section, "NOT FOUND")
 
-        # Clean the content for comparison
             doc1_cleaned = self.clean_text_for_comparison(doc1_content)
             doc2_cleaned = self.clean_text_for_comparison(doc2_content)
 
-        # Calculate size based on cleaned content
             total_content_size = len(doc1_cleaned) + len(doc2_cleaned)
         
-            if total_content_size > 12000:  # If combined cleaned content is too large
-            # Truncate cleaned content for comparison
+            if total_content_size > 12000:
                 doc1_cleaned_truncated = doc1_cleaned[:10000] if doc1_cleaned != "NOT FOUND" else "NOT FOUND"
                 doc2_cleaned_truncated = doc2_cleaned[:10000] if doc2_cleaned != "NOT FOUND" else "NOT FOUND"
             
                 st.warning(f"Section {section} content truncated for comparison due to size")
             
-            # Use cleaned and truncated content for comparison, original for display
                 comparison_result = self._compare_section_content(
                     doc1_cleaned_truncated, doc2_cleaned_truncated, section, sample_number, 
-                    doc1_content, doc2_content  # Pass original content for display
+                    doc1_content, doc2_content
                 )
             else:
-            # Use cleaned content for comparison, original for display
                 comparison_result = self._compare_section_content(
                     doc1_cleaned, doc2_cleaned, section, sample_number,
-                    doc1_content, doc2_content  # Pass original content for display
+                    doc1_content, doc2_content
                 )
         
             comparison_results.append(comparison_result)
@@ -394,11 +343,9 @@ class DocumentComparer:
                            sample_number: str, doc1_original: str = None, 
                            doc2_original: str = None) -> Dict:
     
-    # Use original content for display if provided, otherwise use cleaned content
         display_doc1 = doc1_original if doc1_original is not None else doc1_cleaned
         display_doc2 = doc2_original if doc2_original is not None else doc2_cleaned
 
-    # Use cleaned content for the LLM comparison
         system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and do the following:
 
 Step 1: Understand each section separately.
@@ -525,7 +472,6 @@ Respond only with the final response after understanding and following the above
             }
         
         if has_differences:
-            # Parse the LLM response for meaningful differences
             sub_category = self._parse_difference_description(response_content, section)
             observation_category = 'Mismatch of content between Filed Copy and customer copy'
         else:
@@ -609,7 +555,6 @@ Respond only with the final response after understanding and following the above
         if sub_category and len(sub_category) > 0:
             sub_category = sub_category[0].upper() + sub_category[1:]
 
-        # Default if too generic or short
         if len(sub_category) < 10:
             sub_category = f"Meaningful content differences identified in section {section}"
 
@@ -635,8 +580,8 @@ Respond only with the final response after understanding and following the above
                 from openpyxl.styles import Alignment
             
                 total_rows = len(df)
-                if total_rows > 1:  # Only merge if there's more than 1 row
-                    start_row = 2  # Row 2 (after header)
+                if total_rows > 1:
+                    start_row = 2
                     end_row = total_rows + 1
                 
                     merge_range = f'B{start_row}:B{end_row}'
@@ -656,7 +601,7 @@ Respond only with the final response after understanding and following the above
                         except:
                             pass
                 
-                    adjusted_width = min(max_length + 2, 50)  # Cap at 50 characters
+                    adjusted_width = min(max_length + 2, 50)
                     worksheet.column_dimensions[column_letter].width = adjusted_width
                 
                 for column in worksheet.columns:
@@ -666,7 +611,6 @@ Respond only with the final response after understanding and following the above
                     for cell in column:
                         try:
                             if cell.value:
-                                # Handle different columns specially
                                 if column_letter == 'D':
                                     max_length = max(max_length, min(len(str(cell.value)), 80))
                                 elif column_letter == 'E':
@@ -706,7 +650,6 @@ def main():
     st.title("📄 Enhanced Document Comparer with Rule-based Extraction")
     st.markdown("Upload two PDF documents to compare specific sections using rule-based extraction and AI-powered comparison")
     
-    # Sidebar for Azure OpenAI configuration
     with st.sidebar:
         st.header("🔧 OpenAI Configuration")
         
@@ -736,7 +679,6 @@ def main():
         st.markdown("✅ Complete content display")
         st.markdown("✅ Structured Excel output")
     
-    # Main interface
     col1, col2 = st.columns(2)
     
     with col1:
@@ -772,14 +714,12 @@ def main():
             return
         
         try:
-            # Initialize comparer
             comparer = DocumentComparer(
                 api_key=api_key,
                 model_name=model_name
             )
             
             with st.spinner("🔄 Processing documents..."):
-                # Extract text from PDFs
                 st.info("📖 Extracting text from documents...")
                 doc1_text = comparer.extract_text_from_pdf(doc1_file)
                 doc2_text = comparer.extract_text_from_pdf(doc2_file)
@@ -788,23 +728,19 @@ def main():
                     st.error("❌ Failed to extract text from one or both documents")
                     return
                 
-                # Extract sample number from document 2 (Customer Copy)
                 sample_number = comparer.extract_sample_number_from_filename(doc2_file.name)
                 
-                # Filter sections using rule-based approach
                 st.info("📋 Extracting sections using rule-based approach...")
                 doc1_sections = comparer.filter_sections_with_rules(doc1_text, doc1_file.name, is_customer_copy=False)
                 logger.info("📄 Filed Copy Extracted Sections:\n" + json.dumps(doc1_sections, indent=2))
                 doc2_sections = comparer.filter_sections_with_rules(doc2_text, doc2_file.name, is_customer_copy=True)
                 logger.info("📄 Customer Copy Extracted Sections:\n" + json.dumps(doc2_sections, indent=2))
                 
-                # Compare documents using LLM (comparison part remains the same)
                 st.info("🔍 Analyzing sections with AI-powered comparison...")
                 comparison_results = comparer.compare_documents_with_llm(
                     doc1_sections, doc2_sections, doc1_file.name, doc2_file.name, sample_number
                 )
                 
-                # Create Excel report
                 st.info("📊 Generating comprehensive Excel report...")
                 excel_data = comparer.create_excel_report(
                     comparison_results, doc1_file.name, doc2_file.name
@@ -812,10 +748,8 @@ def main():
             
             st.success("✅ Complete document analysis with rule-based extraction completed successfully!")
             
-            # Display results
             st.subheader("📊 Analysis Results")
             
-            # Summary metrics
             sections_with_differences = len([r for r in comparison_results if 'Mismatch' in r.get('Observation - Category', '')])
             sections_without_differences = len(comparison_results) - sections_with_differences
             
@@ -833,23 +767,19 @@ def main():
             with col4:
                 st.metric("Sample Number", sample_number)
             
-            # Detailed results table
             st.subheader("📋 Complete Section Analysis")
             df_display = pd.DataFrame(comparison_results)
             
-            # Create a display version without the full content for better viewing
             df_display_short = df_display.copy()
             df_display_short['Content (Preview)'] = df_display_short['Content'].apply(
                 lambda x: x[:200] + "..." if len(str(x)) > 200 else x
             )
             
-            # Show table without full content column for better display
             display_columns = ['Samples affected', 'Observation - Category', 'Page', 'Sub-category of Observation', 'Content (Preview)']
             st.dataframe(df_display_short[display_columns], use_container_width=True)
             
             st.info("ℹ️ **Note**: Complete content is available in the downloadable Excel report. Preview shows first 200 characters.")
             
-            # Download Excel report
             st.subheader("📥 Download Complete Report")
             st.download_button(
                 label="📊 Download Complete Analysis with Content",
