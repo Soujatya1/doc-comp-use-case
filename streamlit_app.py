@@ -176,7 +176,7 @@ class DocumentComparer:
         end_idx = None
         for j in range(schedule_start, len(lines)):
             line_upper = lines[j].strip().upper()
-            if "DETAILS OF THE NOMINEE" in line_upper or "DETAILS OF NOMINEE" or "Details of the Nominee" in line_upper:
+            if "Details of the Nominee" in line_upper:
                 end_idx = j
                 break
             if line_upper in self.section_headers and line_upper != "SCHEDULE":
