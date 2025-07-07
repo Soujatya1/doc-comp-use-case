@@ -186,6 +186,34 @@ class DocumentComparer:
         end_idx = end_idx or len(lines)
         return "\n".join(lines[schedule_start:end_idx]).strip()
 
+    def extract_annexure_cc_section(self, text):
+        """Extract Annexure CC section"""
+        lines = text.splitlines()
+        try:
+            # Find the start of ANNEXURE CC
+            annexure_cc_start = None
+            for i, line in enumerate(lines):
+                if line.strip().upper() == "ANNEXURE CC":
+                    annexure_cc_start = i + 1
+                    break
+        
+            if annexure_cc_start is None:
+                return "ANNEXURE CC header not found."
+        except StopIteration:
+            return "ANNEXURE CC not found."
+
+        # Find the end of ANNEXURE CC section
+        end_idx = None
+        for j in range(annexure_cc_start, len(lines)):
+            line_upper = lines[j].strip().upper()
+            # Stop at next section header (but not ANNEXURE CC itself)
+            if "Application / Proposal No. with Barcode" in line_upper:
+                end_idx = j
+                break
+    
+        end_idx = end_idx or len(lines)
+        return "\n".join(lines[annexure_cc_start:end_idx]).strip()
+
     def extract_sections(self, text):
         """Extract all sections from text"""
         lines = text.splitlines()
@@ -198,7 +226,7 @@ class DocumentComparer:
                 header_positions.append((matched_header, i))
 
         for idx, (header, start_idx) in enumerate(header_positions):
-            if header in ["FORWARDING LETTER", "SCHEDULE"]:
+            if header in ["FORWARDING LETTER", "SCHEDULE", "ANNEXURE CC"]:
                 continue
             end_idx = header_positions[idx + 1][1] if idx + 1 < len(header_positions) else len(lines)
             content = "\n".join(lines[start_idx:end_idx]).strip()
@@ -221,6 +249,7 @@ class DocumentComparer:
                 sections["FORWARDING LETTER"] = self.extract_forwarding_letter_section_filed(document_text)
             
             sections["SCHEDULE"] = self.extract_schedule_section(document_text)
+            sections["ANNEXURE CC"] = self.extract_annexure_cc_section(document_text)
             
             # Filter only the target sections for comparison
             filtered_sections = {}
