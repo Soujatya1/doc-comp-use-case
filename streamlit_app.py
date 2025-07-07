@@ -60,6 +60,24 @@ class DocumentComparer:
         self.max_input_chars = 12000
         self.chunk_size = 8000
 
+    def clean_text_for_comparison(self, text: str) -> str:
+        """
+        Remove text between < > brackets before comparison
+        """
+        if not text or text == "NOT FOUND":
+            return text
+        
+        # Remove text between < and > including the brackets
+        # This pattern matches < followed by any characters (including newlines) until >
+        cleaned_text = re.sub(r'<[^<>]*>', '', text, flags=re.DOTALL)
+        
+        # Clean up extra whitespace that might be left after removal
+        cleaned_text = re.sub(r'\n\s*\n', '\n\n', cleaned_text)  # Replace multiple newlines with double newlines
+        cleaned_text = re.sub(r'[ \t]+', ' ', cleaned_text)  # Replace multiple spaces/tabs with single space
+        cleaned_text = cleaned_text.strip()
+        
+        return cleaned_text
+
     def extract_text_from_pdf(self, pdf_file) -> str:
         """Extract text from PDF using PyMuPDF instead of PyPDF2"""
         try:
@@ -275,6 +293,9 @@ class DocumentComparer:
         for section in self.target_sections:
             doc1_content = doc1_sections.get(section, "NOT FOUND")
             doc2_content = doc2_sections.get(section, "NOT FOUND")
+
+            doc1_cleaned = self.clean_text_for_comparison(doc1_content)
+            doc2_cleaned = self.clean_text_for_comparison(doc2_content)
 
             total_content_size = len(doc1_content) + len(doc2_content)
             
