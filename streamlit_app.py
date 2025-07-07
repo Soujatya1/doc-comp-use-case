@@ -186,6 +186,39 @@ class DocumentComparer:
         end_idx = end_idx or len(lines)
         return "\n".join(lines[schedule_start:end_idx]).strip()
 
+    def extract_annexure_cc_section(self, text):
+        lines = text.splitlines()
+        try:
+            start_idx = next(i for i, line in enumerate(lines) if line.strip().upper() == "ANNEXURE CC")
+            annexure_cc_start = start_idx + 1
+        except StopIteration:
+            return "ANNEXURE CC section not found."
+        stop_conditions = [
+            "Application / Proposal No. with Barcode"
+        ]
+
+        end_idx = None
+        for j in range(annexure_cc_start, len(lines)):
+            line_upper = lines[j].strip().upper()
+            
+            # Check for specific stop conditions
+            for stop_condition in stop_conditions:
+                if stop_condition in line_upper:
+                    end_idx = j
+                    break
+            
+            if end_idx is not None:
+                break
+                
+            # Check if we hit another section header
+            if line_upper in self.section_headers and line_upper != "ANNEXURE CC":
+                end_idx = j
+                break
+
+        # If no stop condition found, take until end of document
+        end_idx = end_idx or len(lines)
+        return "\n".join(lines[annexure_cc_start:end_idx]).strip()
+
     def extract_sections(self, text):
         """Extract all sections from text"""
         lines = text.splitlines()
@@ -221,6 +254,7 @@ class DocumentComparer:
                 sections["FORWARDING LETTER"] = self.extract_forwarding_letter_section_filed(document_text)
             
             sections["SCHEDULE"] = self.extract_schedule_section(document_text)
+            sections["ANNEXURE CC"] = self.extract_annxure_cc(document_text)
             
             # Filter only the target sections for comparison
             filtered_sections = {}
