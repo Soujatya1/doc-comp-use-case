@@ -207,7 +207,7 @@ class DocumentComparer:
         for j in range(annexure_cc_start, len(lines)):
             line_upper = lines[j].strip().upper()
             # Stop at next section header (but not ANNEXURE CC itself)
-            if "Application / Proposal No. with Barcode" in line_upper:
+            if "APPLICATION / PROPOSAL NO. WITH BARCODE" in line_upper:
                 end_idx = j
                 break
     
