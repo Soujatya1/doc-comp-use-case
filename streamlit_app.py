@@ -244,10 +244,10 @@ class DocumentComparer:
 
             total_content_size = len(doc1_content) + len(doc2_content)
             
-            if total_content_size > 8000:  # If combined content is too large
+            if total_content_size > 12000:  # If combined content is too large
                 # Truncate content for comparison but keep full content for display
-                doc1_truncated = doc1_content[:3000] if doc1_content != "NOT FOUND" else "NOT FOUND"
-                doc2_truncated = doc2_content[:3000] if doc2_content != "NOT FOUND" else "NOT FOUND"
+                doc1_truncated = doc1_content[:10000] if doc1_content != "NOT FOUND" else "NOT FOUND"
+                doc2_truncated = doc2_content[:10000] if doc2_content != "NOT FOUND" else "NOT FOUND"
                 
                 st.warning(f"Section {section} content truncated for comparison due to size")
                 
