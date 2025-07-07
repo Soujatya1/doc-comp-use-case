@@ -573,7 +573,7 @@ def main():
     
     # Sidebar for Azure OpenAI configuration
     with st.sidebar:
-        st.header("🔧 Configuration")
+        st.header("🔧 OpenAI Configuration")
         
         api_key = st.text_input(
             "OpenAI API Key",
@@ -628,8 +628,8 @@ def main():
     
     # Process documents
     if st.button("🔍 Analyze All Sections with Rule-based Extraction", type="primary"):
-        if not all([azure_endpoint, api_key, deployment_name]):
-            st.error("❌ Please provide all Azure OpenAI configuration details")
+        if not api_key:
+            st.error("❌ Please provide OpenAI API key")
             return
         
         if not doc1_file or not doc2_file:
@@ -639,10 +639,8 @@ def main():
         try:
             # Initialize comparer
             comparer = DocumentComparer(
-                azure_endpoint=azure_endpoint,
                 api_key=api_key,
-                api_version=api_version,
-                deployment_name=deployment_name
+                model_name=model_name
             )
             
             with st.spinner("🔄 Processing documents..."):
