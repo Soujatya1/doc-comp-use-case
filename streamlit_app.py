@@ -3,7 +3,7 @@ import fitz  # PyMuPDF
 import io
 import pandas as pd
 import os
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
  
 st.set_page_config(layout="wide")
 load_dotenv()
