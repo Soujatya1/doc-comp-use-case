@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import fitz  # PyMuPDF
 import io
-from langchain_openai import AzureChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
 from langchain.prompts import PromptTemplate
 import json
@@ -15,12 +15,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class DocumentComparer:
-    def __init__(self, azure_endpoint: str, api_key: str, api_version: str, deployment_name: str):
-        self.llm = AzureChatOpenAI(
-            azure_endpoint=azure_endpoint,
+    def __init__(self, api_key: str, model_name: str = "gpt-4"):
+        self.llm = ChatOpenAI(
             api_key=api_key,
-            api_version=api_version,
-            deployment_name=deployment_name,
+            model_name=model_name,
             temperature=0.1,
             max_tokens=4000
         )
@@ -577,28 +575,16 @@ def main():
     with st.sidebar:
         st.header("🔧 Configuration")
         
-        azure_endpoint = st.text_input(
-            "Azure OpenAI Endpoint",
-            placeholder="https://your-resource.openai.azure.com/",
-            type="password"
-        )
-        
         api_key = st.text_input(
-            "API Key",
-            placeholder="Enter your Azure OpenAI API key",
+            "OpenAI API Key",
+            placeholder="Enter your OpenAI API key",
             type="password"
         )
-        
-        api_version = st.text_input(
-            "API Version",
-            value="2024-02-01",
-            placeholder="2024-02-01"
-        )
-        
-        deployment_name = st.text_input(
-            "Deployment Name",
-            placeholder="gpt-4",
-            value="gpt-4"
+
+        model_name = st.selectbox(
+            "Model",
+            options=["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"],
+            index=0
         )
         
         st.markdown("---")
