@@ -352,46 +352,53 @@ class DocumentComparer:
             return {section: "NOT FOUND" for section in self.target_sections}
 
     def compare_documents_with_llm(self, doc1_sections: Dict[str, str], doc2_sections: Dict[str, str], 
-                               doc1_name: str, doc2_name: str, sample_number: str) -> List[Dict]:
-    
+                           doc1_name: str, doc2_name: str, sample_number: str) -> List[Dict]:
+
         comparison_results = []
 
         for section in self.target_sections:
             doc1_content = doc1_sections.get(section, "NOT FOUND")
             doc2_content = doc2_sections.get(section, "NOT FOUND")
 
+        # Clean the content for comparison
             doc1_cleaned = self.clean_text_for_comparison(doc1_content)
             doc2_cleaned = self.clean_text_for_comparison(doc2_content)
 
-            total_content_size = len(doc1_content) + len(doc2_content)
+        # Calculate size based on cleaned content
+            total_content_size = len(doc1_cleaned) + len(doc2_cleaned)
+        
+            if total_content_size > 12000:  # If combined cleaned content is too large
+            # Truncate cleaned content for comparison
+                doc1_cleaned_truncated = doc1_cleaned[:10000] if doc1_cleaned != "NOT FOUND" else "NOT FOUND"
+                doc2_cleaned_truncated = doc2_cleaned[:10000] if doc2_cleaned != "NOT FOUND" else "NOT FOUND"
             
-            if total_content_size > 12000:  # If combined content is too large
-                # Truncate content for comparison but keep full content for display
-                doc1_truncated = doc1_content[:10000] if doc1_content != "NOT FOUND" else "NOT FOUND"
-                doc2_truncated = doc2_content[:10000] if doc2_content != "NOT FOUND" else "NOT FOUND"
-                
                 st.warning(f"Section {section} content truncated for comparison due to size")
-                
+            
+            # Use cleaned and truncated content for comparison, original for display
                 comparison_result = self._compare_section_content(
-                    doc1_truncated, doc2_truncated, section, sample_number, 
-                    doc1_content, doc2_content  # Pass full content for display
+                    doc1_cleaned_truncated, doc2_cleaned_truncated, section, sample_number, 
+                    doc1_content, doc2_content  # Pass original content for display
                 )
             else:
+            # Use cleaned content for comparison, original for display
                 comparison_result = self._compare_section_content(
-                    doc1_content, doc2_content, section, sample_number
+                    doc1_cleaned, doc2_cleaned, section, sample_number,
+                    doc1_content, doc2_content  # Pass original content for display
                 )
-            
+        
             comparison_results.append(comparison_result)
 
         return comparison_results
     
-    def _compare_section_content(self, doc1_content: str, doc2_content: str, section: str, 
-                               sample_number: str, full_doc1_content: str = None, 
-                               full_doc2_content: str = None) -> Dict:
-        
-        display_doc1 = full_doc1_content if full_doc1_content is not None else doc1_content
-        display_doc2 = full_doc2_content if full_doc2_content is not None else doc2_content
+    def _compare_section_content(self, doc1_cleaned: str, doc2_cleaned: str, section: str, 
+                           sample_number: str, doc1_original: str = None, 
+                           doc2_original: str = None) -> Dict:
+    
+    # Use original content for display if provided, otherwise use cleaned content
+        display_doc1 = doc1_original if doc1_original is not None else doc1_cleaned
+        display_doc2 = doc2_original if doc2_original is not None else doc2_cleaned
 
+    # Use cleaned content for the LLM comparison
         system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and do the following:
 
 Step 1: Understand each section separately.
@@ -420,11 +427,11 @@ Compare the two documents as:
 - Filed Copy = Document 1
 - Customer Copy = Document 2
 
-Filed Copy:
-{doc1_content}
+Filed Copy (cleaned for comparison):
+{doc1_cleaned}
 
-Customer Copy:
-{doc2_content}
+Customer Copy (cleaned for comparison):
+{doc2_cleaned}
 
 Respond only with the final response after understanding and following the above steps. If no meaningful content differences are found, clearly respond: "NO_CONTENT_DIFFERENCE".
 """
