@@ -374,6 +374,11 @@ Step 2: Identify all *meaningful content differences* between them, focusing onl
 - DO NOT COMPARE THE PORTIONS WHICH HAVE PLACEHOLDERS IN THE FILED COPY
 IGNORE differences in formatting, punctuation, line breaks, numbering or case changes.
 
+EXCLUDE:
+1. Names
+2. Identification Numbers
+3. PII information
+
 Step 3: Present a structured, **point-wise list** of the meaningful differences, e.g.:
 1. Date changed from 'X' in Document 1 to 'Y' in Document 2.
 2. The clause about <topic> is present in Document 2 but missing in Document 1.
