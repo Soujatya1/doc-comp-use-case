@@ -314,7 +314,7 @@ Step 2: Identify all *meaningful content differences* between them, focusing onl
 - Textual changes
 - Modifications, additions and deletions
 - Ignore numbering or serialization differences
-
+- DO NOT COMPARE THE PORTIONS WHICH HAVE PLACEHOLDERS IN THE FILED COPY
 IGNORE differences in formatting, punctuation, line breaks, numbering or case changes.
 
 Step 3: Present a structured, **point-wise list** of the meaningful differences, e.g.:
