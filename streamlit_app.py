@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import fitz  # PyMuPDF
+import fitz
 import io
 from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
