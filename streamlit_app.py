@@ -119,33 +119,29 @@ class DocumentComparer:
         
         return cleaned_text
 
-    def extract_text_from_pdf(self, pdf_file) -> str:
+    def extract_tables_from_pdf(self, pdf_file) -> list:
         try:
-            pdf_file.seek(0)
+            doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
+            all_tables = []
             
-            with pdfplumber.open(pdf_file) as pdf:
-                combined_text = ""
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                # Find tables on the page
+                tables = page.find_tables()
                 
-                for page in pdf.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        combined_text += page_text + "\n"
-                    
-                    tables = page.extract_tables()
-                    for table in tables:
-                        if table:
-                            table_text = "\n[TABLE]\n"
-                            for row in table:
-                                row_text = "\t".join([str(cell) if cell is not None else "" for cell in row])
-                                table_text += row_text + "\n"
-                            table_text += "[/TABLE]\n"
-                            combined_text += table_text
+                for table in tables:
+                    # Extract table data as list of lists
+                    table_data = table.extract()
+                    all_tables.append({
+                        'page': page_num + 1,
+                        'data': table_data
+                    })
             
-            return combined_text.strip()
-            
+            doc.close()
+            return all_tables
         except Exception as e:
-            logger.error(f"Error extracting text from PDF: {str(e)}")
-            return ""
+            logger.error(f"Error extracting tables from PDF: {str(e)}")
+            return []
 
     def extract_sample_number_from_filename(self, filename: str) -> str:
         patterns = [
