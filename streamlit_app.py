@@ -677,7 +677,7 @@ def main():
         
         api_version = st.selectbox(
             "API Version",
-            options=["2024-02-01", "2023-12-01-preview", "2023-05-15"],
+            options=["2025-01-01-preview"],
             index=0,
             help="Azure OpenAI API version"
         )
