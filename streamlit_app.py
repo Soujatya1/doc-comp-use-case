@@ -363,7 +363,6 @@ Filed Copy (cleaned for comparison):
 Customer Copy (cleaned for comparison):
 {doc2_cleaned}
 
-Respond only with the final response after understanding and following the above steps. If no meaningful content differences are found, clearly respond: "NO_CONTENT_DIFFERENCE".
 """
 
         try:
