@@ -353,13 +353,7 @@ class DocumentComparer:
 
 Step 1: Understand each section separately.
 
-Step 2: Identify all *meaningful content differences* between them, focusing only on:
-- Contextual changes
-- Textual changes
-- Modifications, additions and deletions
-- Ignore numbering or serialization differences
-- DO NOT COMPARE THE PORTIONS WHICH HAVE PLACEHOLDERS IN THE FILED COPY
-IGNORE differences in formatting, punctuation, line breaks, numbering or case changes.
+Step 2: Identify all *meaningful content differences* between them
 
 For section, "FORWARDING LETTER", Focus on differences in:
   - List of required documents
