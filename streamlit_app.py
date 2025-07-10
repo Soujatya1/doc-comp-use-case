@@ -361,6 +361,12 @@ Step 2: Identify all *meaningful content differences* between them, focusing onl
 - DO NOT COMPARE THE PORTIONS WHICH HAVE PLACEHOLDERS IN THE FILED COPY
 IGNORE differences in formatting, punctuation, line breaks, numbering or case changes.
 
+For section, "FORWARDING LETTER", Focus on differences in:
+  - List of required documents
+  - Free-look clause and refund conditions
+  - Regulatory references (like Section 45 of Insurance Act)
+  - Instructions related to cancellation, servicing, or policy issuance
+
 EXCLUDE:
 1. Names
 2. Identification Numbers
