@@ -349,27 +349,7 @@ class DocumentComparer:
         display_doc1 = doc1_original if doc1_original is not None else doc1_cleaned
         display_doc2 = doc2_original if doc2_original is not None else doc2_cleaned
 
-        system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and do the following:
-
-Step 1: Understand each section separately.
-
-Step 2: Identify all *content (text and context) differences* between them
-
-For section, "FORWARDING LETTER", Focus on differences in:
-  - List of required documents
-  - Free-look clause and refund conditions
-  - Regulatory references (like Section 45 of Insurance Act)
-  - Instructions related to cancellation, servicing, or policy issuance
-
-EXCLUDE:
-1. Names
-2. Identification Numbers
-3. PII information
-
-Step 3: Present a structured, **point-wise list** of the meaningful differences, e.g.:
-1. Date changed from 'X' in Document 1 to 'Y' in Document 2.
-2. The clause about <topic> is present in Document 2 but missing in Document 1.
-3. Name changed from 'Mr. X' to 'Mr. Y'.
+        system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and display the differences between the same
 
 Section Name: {section}
 
