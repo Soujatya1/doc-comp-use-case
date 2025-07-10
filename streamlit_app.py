@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import fitz
 import io
-from langchain_openai import ChatOpenAI
+from langchain_openai import AzureChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
 from langchain.prompts import PromptTemplate
 import json
@@ -15,15 +15,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class DocumentComparer:
-    def __init__(self, api_key: str, model_name: str = "gpt-4"):
+    def __init__(self, azure_endpoint: str, api_key: str, api_version: str = "2024-02-01", 
+                 deployment_name: str = "gpt-4"):
         self.llm = AzureChatOpenAI(
             azure_endpoint=azure_endpoint,
-            openai_api_key=api_key,
-            azure_deployment=azure_deployment,
+            api_key=api_key,
             api_version=api_version,
-            temperature=0.2,
-            top_p=0.2,
-            max_tokens = 4000
+            deployment_name=deployment_name,
+            temperature=0.1,
+            max_tokens=4000
         )
 
         self.target_sections = [
@@ -645,27 +645,41 @@ Respond only with the final response after understanding and following the above
 
 def main():
     st.set_page_config(
-        page_title="Enhanced Document Comparer with Rule-based Extraction",
+        page_title="Enhanced Document Comparer with Azure OpenAI",
         page_icon="📄",
         layout="wide"
     )
     
-    st.title("📄 Enhanced Document Comparer with Rule-based Extraction")
-    st.markdown("Upload two PDF documents to compare specific sections using rule-based extraction and AI-powered comparison")
+    st.title("📄 Enhanced Document Comparer with Azure OpenAI")
+    st.markdown("Upload two PDF documents to compare specific sections using rule-based extraction and Azure OpenAI-powered comparison")
     
     with st.sidebar:
-        st.header("🔧 OpenAI Configuration")
+        st.header("🔧 Azure OpenAI Configuration")
+        
+        azure_endpoint = st.text_input(
+            "Azure OpenAI Endpoint",
+            placeholder="https://your-resource-name.openai.azure.com/",
+            help="Your Azure OpenAI resource endpoint URL"
+        )
         
         api_key = st.text_input(
-            "OpenAI API Key",
-            placeholder="Enter your OpenAI API key",
+            "Azure OpenAI API Key",
+            placeholder="Enter your Azure OpenAI API key",
             type="password"
         )
-
-        model_name = st.selectbox(
-            "Model",
-            options=["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"],
-            index=0
+        
+        deployment_name = st.text_input(
+            "Deployment Name",
+            value="gpt-4",
+            placeholder="Enter your deployment name",
+            help="The name of your GPT model deployment in Azure"
+        )
+        
+        api_version = st.selectbox(
+            "API Version",
+            options=["2024-02-01", "2023-12-01-preview", "2023-05-15"],
+            index=0,
+            help="Azure OpenAI API version"
         )
         
         st.markdown("---")
@@ -678,7 +692,7 @@ def main():
         st.markdown("---")
         st.markdown("**Analysis Features:**")
         st.markdown("✅ Rule-based section extraction")
-        st.markdown("✅ AI-powered content comparison")
+        st.markdown("✅ Azure OpenAI-powered comparison")
         st.markdown("✅ Complete content display")
         st.markdown("✅ Structured Excel output")
     
@@ -708,8 +722,8 @@ def main():
     
     # Process documents
     if st.button("🔍 Analyze All Sections with Rule-based Extraction", type="primary"):
-        if not api_key:
-            st.error("❌ Please provide OpenAI API key")
+        if not azure_endpoint or not api_key or not deployment_name:
+            st.error("❌ Please provide all Azure OpenAI configuration details")
             return
         
         if not doc1_file or not doc2_file:
@@ -718,8 +732,10 @@ def main():
         
         try:
             comparer = DocumentComparer(
+                azure_endpoint=azure_endpoint,
                 api_key=api_key,
-                model_name=model_name
+                api_version=api_version,
+                deployment_name=deployment_name
             )
             
             with st.spinner("🔄 Processing documents..."):
