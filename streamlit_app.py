@@ -353,7 +353,7 @@ class DocumentComparer:
 
 Step 1: Understand each section separately.
 
-Step 2: Identify all *meaningful content differences* between them
+Step 2: Identify all *content (text and context) differences* between them
 
 For section, "FORWARDING LETTER", Focus on differences in:
   - List of required documents
