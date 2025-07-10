@@ -368,6 +368,10 @@ class DocumentComparer:
 
         system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and display ONLY the meaningful and contextual differences between the same
 
+IGNORE:
+1. Different language or script differences
+2. Spacing/indentation/numbering/serialization differences
+
 Section Name: {section}
 
 Compare the two documents as:
