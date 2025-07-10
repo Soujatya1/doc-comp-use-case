@@ -16,11 +16,14 @@ logger = logging.getLogger(__name__)
 
 class DocumentComparer:
     def __init__(self, api_key: str, model_name: str = "gpt-4"):
-        self.llm = ChatOpenAI(
-            api_key=api_key,
-            model_name=model_name,
-            temperature=0.1,
-            max_tokens=4000
+        self.llm = AzureChatOpenAI(
+            azure_endpoint=azure_endpoint,
+            openai_api_key=api_key,
+            azure_deployment=azure_deployment,
+            api_version=api_version,
+            temperature=0.2,
+            top_p=0.2,
+            max_tokens = 4000
         )
 
         self.target_sections = [
