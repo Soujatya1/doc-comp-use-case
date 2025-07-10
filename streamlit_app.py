@@ -119,29 +119,34 @@ class DocumentComparer:
         
         return cleaned_text
 
-    def extract_tables_from_pdf(self, pdf_file) -> list:
+    def extract_text_from_pdf(self, pdf_file) -> dict:
         try:
             doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
-            all_tables = []
+            content = {
+                'text': '',
+                'tables': []
+            }
             
             for page_num in range(len(doc)):
                 page = doc[page_num]
-                # Find tables on the page
-                tables = page.find_tables()
                 
+                # Extract regular text
+                content['text'] += page.get_text("text") + "\n"
+                
+                # Extract tables
+                tables = page.find_tables()
                 for table in tables:
-                    # Extract table data as list of lists
                     table_data = table.extract()
-                    all_tables.append({
+                    content['tables'].append({
                         'page': page_num + 1,
                         'data': table_data
                     })
             
             doc.close()
-            return all_tables
+            return content
         except Exception as e:
-            logger.error(f"Error extracting tables from PDF: {str(e)}")
-            return []
+            logger.error(f"Error extracting content from PDF: {str(e)}")
+            return {'text': '', 'tables': []}
 
     def extract_sample_number_from_filename(self, filename: str) -> str:
         patterns = [
