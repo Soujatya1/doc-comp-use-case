@@ -10,6 +10,7 @@ import re
 from typing import Dict, List, Tuple
 import logging
 from datetime import datetime
+import pdfplumber
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -120,12 +121,28 @@ class DocumentComparer:
 
     def extract_text_from_pdf(self, pdf_file) -> str:
         try:
-            doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
-            text = ""
-            for page_num in range(len(doc)):
-                page = doc[page_num]
-                text += page.get_text("text") + "\n"
-            return text
+            pdf_file.seek(0)
+            
+            with pdfplumber.open(pdf_file) as pdf:
+                combined_text = ""
+                
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        combined_text += page_text + "\n"
+                    
+                    tables = page.extract_tables()
+                    for table in tables:
+                        if table:
+                            table_text = "\n[TABLE]\n"
+                            for row in table:
+                                row_text = "\t".join([str(cell) if cell is not None else "" for cell in row])
+                                table_text += row_text + "\n"
+                            table_text += "[/TABLE]\n"
+                            combined_text += table_text
+            
+            return combined_text.strip()
+            
         except Exception as e:
             logger.error(f"Error extracting text from PDF: {str(e)}")
             return ""
