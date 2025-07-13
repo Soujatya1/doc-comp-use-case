@@ -348,56 +348,135 @@ class DocumentComparer:
     
         display_doc1 = doc1_original if doc1_original is not None else doc1_cleaned
         display_doc2 = doc2_original if doc2_original is not None else doc2_cleaned
-
-        system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and do the following:
-
-Step 1: Understand each section separately.
-
-Step 2: Identify all *meaningful content differences* between them, focusing only on:
-- Textual changes
-- Modifications, additions and deletions
-- Ignore numbering or serialization differences
-- DO NOT COMPARE THE PORTIONS WHICH HAVE PLACEHOLDERS IN THE FILED COPY
-IGNORE differences in formatting, punctuation, line breaks, numbering or case changes.
-
-EXCLUDE:
-1. Names
-2. Identification Numbers
-3. PII information
-
-Step 3: Present a structured, **point-wise list** of the meaningful differences, e.g.:
-1. Date changed from 'X' in Document 1 to 'Y' in Document 2.
-2. The clause about <topic> is present in Document 2 but missing in Document 1.
-3. Name changed from 'Mr. X' to 'Mr. Y'.
-
-Section Name: {section}
-
-Compare the two documents as:
-- Filed Copy = Document 1
-- Customer Copy = Document 2
-
-Filed Copy (cleaned for comparison):
-{doc1_cleaned}
-
-Customer Copy (cleaned for comparison):
-{doc2_cleaned}
-
-Respond only with the final response after understanding and following the above steps. If no meaningful content differences are found, clearly respond: "NO_CONTENT_DIFFERENCE".
-"""
-
+    
+        # Enhanced intelligent system prompt
+        system_prompt = f"""You are an expert document comparison analyst specializing in insurance policy documents. Your task is to perform a comprehensive, intelligent comparison of two versions of the same document section.
+    
+    ANALYSIS FRAMEWORK:
+    
+    1. CONTEXTUAL UNDERSTANDING:
+       - Section Type: {section}
+       - Document Purpose: Insurance policy comparison between Filed Copy (regulatory version) and Customer Copy (client version)
+       - Expected Variations: Customer copies may have simplified language, removed regulatory jargon, or consolidated information
+    
+    2. INTELLIGENT COMPARISON METHODOLOGY:
+    
+       STEP 1: SEMANTIC ANALYSIS
+       - Identify the core meaning and intent of each document
+       - Look for substantive changes in meaning, not just wording
+       - Consider synonymous expressions (e.g., "policyholder" vs "policy holder")
+       
+       STEP 2: CONTENT CATEGORIZATION
+       Focus on these change types in order of importance:
+       
+       a) CRITICAL CHANGES (High Impact):
+          - Financial terms: premiums, sum assured, benefits, charges
+          - Coverage scope: inclusions, exclusions, limitations
+          - Legal obligations: terms, conditions, responsibilities
+          - Regulatory compliance: statutory requirements, disclosures
+       
+       b) STRUCTURAL CHANGES (Medium Impact):
+          - Clause additions or removals
+          - Section reorganization
+          - Information consolidation or expansion
+          - Format changes affecting readability
+       
+       c) LINGUISTIC CHANGES (Low Impact):
+          - Simplified language for customer understanding
+          - Technical jargon removal or explanation
+          - Tone adjustments (formal to conversational)
+          - Redundancy elimination
+    
+       STEP 3: BUSINESS IMPACT ASSESSMENT
+       For each identified change, determine:
+       - Does this affect customer rights or obligations?
+       - Does this change financial implications?
+       - Is this a regulatory requirement difference?
+       - Does this impact policy understanding or usability?
+    
+    3. EXCLUSION CRITERIA (DO NOT REPORT):
+       - Placeholder text differences (e.g., <Name>, <Address>)
+       - Pure formatting changes (fonts, spacing, indentation)
+       - Numbering or bullet point style changes
+       - Case changes (uppercase to lowercase)
+       - Punctuation modifications that don't change meaning
+       - Personal information differences (names, addresses, IDs)
+       - Date format changes (DD/MM/YYYY vs DD-MM-YYYY)
+    
+    4. REPORTING STANDARDS:
+       - Use clear, business-friendly language
+       - Quantify changes where possible
+       - Provide specific examples with exact quotes
+       - Categorize impact level (Critical/Significant/Minor)
+       - Focus on "what changed" and "why it matters"
+    
+    5. SECTION-SPECIFIC INTELLIGENCE:
+       
+       For FORWARDING LETTER:
+       - Focus on communication tone, instructions, and procedural differences
+       
+       For SCHEDULE:
+       - Critical focus on all financial figures, dates, and coverage details
+       - Flag any premium, benefit, or tenure changes
+       
+       For DEFINITIONS & ABBREVIATIONS:
+       - Identify new, removed, or modified definitions
+       - Check for terminology consistency
+       
+       For PREAMBLE:
+       - Look for fundamental policy principle changes
+       - Check contract formation elements
+       
+       For PARTS C, D, F, G:
+       - Focus on operational differences
+       - Identify procedural changes
+       
+       For ANNEXURES:
+       - Check for additional terms or conditions
+       - Identify supplementary information changes
+    
+    ANALYSIS EXECUTION:
+    
+    Document 1 (Filed Copy):
+    {doc1_cleaned}
+    
+    Document 2 (Customer Copy):
+    {doc2_cleaned}
+    
+    REQUIRED OUTPUT FORMAT:
+    
+    If NO meaningful differences found:
+    Respond exactly: "NO_CONTENT_DIFFERENCE"
+    
+    If differences found, structure as:
+    IMPACT_LEVEL: [Critical/Significant/Minor]
+    
+    CHANGES IDENTIFIED:
+    1. [Specific change description with context]
+       - Filed Copy: "[exact text]"
+       - Customer Copy: "[exact text]"
+       - Business Impact: [explain why this matters]
+    
+    2. [Next change...]
+    
+    OVERALL ASSESSMENT:
+    [Summary of the cumulative impact of all changes]
+    
+    Remember: Your analysis should be thorough yet concise, focusing on changes that actually matter to stakeholders. Ignore superficial differences and highlight substantive variations that affect policy understanding, legal obligations, or financial implications."""
+    
         try:
             messages = [
                 SystemMessage(content=system_prompt),
-                HumanMessage(content="Please provide your analysis.")
+                HumanMessage(content="Please analyze these documents using the intelligent comparison framework provided.")
             ]
-
+    
             response = self.llm.invoke(messages)
-
+    
             comparison_result = self._create_section_result(
                 response.content, section, display_doc1, display_doc2, sample_number
             )
             return comparison_result
-
+    
         except Exception as e:
             logger.error(f"Error comparing section {section}: {str(e)}")
             return {
