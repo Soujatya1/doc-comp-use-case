@@ -10,7 +10,6 @@ import re
 from typing import Dict, List, Tuple
 import logging
 from datetime import datetime
-import pdfplumber
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -119,34 +118,17 @@ class DocumentComparer:
         
         return cleaned_text
 
-    def extract_text_from_pdf(self, pdf_file) -> dict:
+    def extract_text_from_pdf(self, pdf_file) -> str:
         try:
             doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
-            content = {
-                'text': '',
-                'tables': []
-            }
-            
+            text = ""
             for page_num in range(len(doc)):
                 page = doc[page_num]
-                
-                # Extract regular text
-                content['text'] += page.get_text("text") + "\n"
-                
-                # Extract tables
-                tables = page.find_tables()
-                for table in tables:
-                    table_data = table.extract()
-                    content['tables'].append({
-                        'page': page_num + 1,
-                        'data': table_data
-                    })
-            
-            doc.close()
-            return content
+                text += page.get_text("text") + "\n"
+            return text
         except Exception as e:
-            logger.error(f"Error extracting content from PDF: {str(e)}")
-            return {'text': '', 'tables': []}
+            logger.error(f"Error extracting text from PDF: {str(e)}")
+            return ""
 
     def extract_sample_number_from_filename(self, filename: str) -> str:
         patterns = [
@@ -367,11 +349,27 @@ class DocumentComparer:
         display_doc1 = doc1_original if doc1_original is not None else doc1_cleaned
         display_doc2 = doc2_original if doc2_original is not None else doc2_cleaned
 
-        system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and display ONLY the meaningful and contextual differences between the same
+        system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and do the following:
 
-IGNORE:
-1. Different language or script differences
-2. Spacing/indentation/numbering/serialization differences
+Step 1: Understand each section separately.
+
+Step 2: Identify all *meaningful content differences* between them, focusing only on:
+- Contextual changes
+- Textual changes
+- Modifications, additions and deletions
+- Ignore numbering or serialization differences
+- DO NOT COMPARE THE PORTIONS WHICH HAVE PLACEHOLDERS IN THE FILED COPY
+IGNORE differences in formatting, punctuation, line breaks, numbering or case changes.
+
+EXCLUDE:
+1. Names
+2. Identification Numbers
+3. PII information
+
+Step 3: Present a structured, **point-wise list** of the meaningful differences, e.g.:
+1. Date changed from 'X' in Document 1 to 'Y' in Document 2.
+2. The clause about <topic> is present in Document 2 but missing in Document 1.
+3. Name changed from 'Mr. X' to 'Mr. Y'.
 
 Section Name: {section}
 
@@ -385,6 +383,7 @@ Filed Copy (cleaned for comparison):
 Customer Copy (cleaned for comparison):
 {doc2_cleaned}
 
+Respond only with the final response after understanding and following the above steps. If no meaningful content differences are found, clearly respond: "NO_CONTENT_DIFFERENCE".
 """
 
         try:
