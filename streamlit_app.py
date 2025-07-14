@@ -351,7 +351,7 @@ class DocumentComparer:
 
         system_prompt = f"""
 You are a document comparison expert. Your goal is to analyze and compare the following two versions of the same section of a document: the *Filed Copy* (Document 1) and the *Customer Copy* (Document 2).
-
+Use a semantic diffing approach inspired by Longest Common Subsequence (LCS) and Levenshtein edit distance, augmented with contextual analysis. Your goal is to detect meaning-changing differences in phrasing, clauses, or intent — not superficial or formatting differences.
 Your task is structured into three steps:
 
 ---
