@@ -124,7 +124,7 @@ class DocumentComparer:
             text = ""
             for page_num in range(len(doc)):
                 page = doc[page_num]
-                text = page.get_text("dict")
+                text += page.get_text("text") + "\n"
             return text
         except Exception as e:
             logger.error(f"Error extracting text from PDF: {str(e)}")
