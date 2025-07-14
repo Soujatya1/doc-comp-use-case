@@ -357,6 +357,11 @@ You are a document comparison expert. Your task is to analyze and compare two ve
 ### 🔍 Objective:
 Identify all **meaningful content differences** between the two versions using a **semantic diffing approach** inspired by Longest Common Subsequence (LCS) and Levenshtein Distance. Focus on *changes in meaning* rather than formatting or structural differences.
 
+IMPORTANT POINTS TO BE CONSIDERED:
+1. No serialization differences
+2. No Labelling differences
+3. ONLY contextually meaningful differences
+
 ### 🔖 Section Name:
 {section}
 
