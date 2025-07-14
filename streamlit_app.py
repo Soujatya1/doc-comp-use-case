@@ -350,54 +350,62 @@ class DocumentComparer:
         display_doc2 = doc2_original if doc2_original is not None else doc2_cleaned
 
         system_prompt = f"""
-You are a document comparison expert. Your goal is to analyze and compare the following two versions of the same section of a document: the *Filed Copy* (Document 1) and the *Customer Copy* (Document 2).
-Use a semantic diffing approach inspired by Longest Common Subsequence (LCS) and Levenshtein edit distance, augmented with contextual analysis. Your goal is to detect meaning-changing differences in phrasing, clauses, or intent — not superficial or formatting differences.
-Your task is structured into three steps:
+You are a document comparison expert. Your task is to analyze and compare two versions of the same section: the **Filed Copy** (Document 1) and the **Customer Copy** (Document 2).
 
 ---
+
+### 🔍 Objective:
+Identify all **meaningful content differences** between the two versions using a **semantic diffing approach** inspired by Longest Common Subsequence (LCS) and Levenshtein Distance. Focus on *changes in meaning* rather than formatting or structural differences.
+
+---
+
+### 🧭 Step-by-Step Instructions:
 
 **Step 1: Understand each section independently.**  
-Carefully read and comprehend the meaning of each version.
+Read both versions carefully to grasp the intent and content of each.
 
-**Step 2: Identify all *meaningful content differences*, strictly limited to:**
-- Changes in context, phrasing, or meaning.
-- Additions, deletions, or modifications of clauses or statements.
-- Inclusion or exclusion of important content.
+**Step 2: Identify only the following types of meaningful differences:**
+- Contextual or semantic changes (e.g., a change in terms, rights, obligations, or definitions).
+- Additions, deletions, or modifications to clauses or content that affect meaning.
+- Rewording or paraphrasing that alters interpretation or legal/commercial value.
 
-**Step 3: Ignore the following types of changes (DO NOT include these in the comparison):**
-- Formatting, punctuation, line breaks, or case sensitivity.
-- Numbering or serialization differences.
-- Placeholder content or blank fields in the *Filed Copy* (Document 1).
-- Any mention of:
-    - Names (e.g., individual names, signatories)
-    - Identification Numbers (PAN, Aadhar, etc.)
-    - Any Personally Identifiable Information (PII)
-
----
-
-**Your output should be:**
-- A **structured, point-wise list** of meaningful content differences.
-- Numbered, with each point showing *what changed* and *where it appears*.
-- Precise, concise, and neutral in tone.
+**Step 3: Strictly IGNORE the following:**
+- Formatting changes (bold, underline, punctuation, spacing, etc.)
+- Numbering or serialization differences (e.g., “1.1” vs “I.1”)
+- Placeholder content or empty fields in the Filed Copy (e.g., "_____", "<Name>", "<Date>")
+- Changes in:
+  - Names
+  - Identification numbers (e.g., PAN, Aadhar)
+  - Other personally identifiable information (PII)
 
 ---
 
-**Examples of valid output format:**
-1. A clause about termination notice period is present in Document 2 but missing in Document 1.
-2. In Document 1, the refund policy is stated as "non-refundable"; in Document 2, it is described as "partially refundable".
-3. Document 1 includes a condition for late payment penalty, which is not found in Document 2.
+### ✅ Output Format:
 
-If there are **no meaningful content differences**, respond with exactly:  
+Respond with a **numbered, point-wise list** of meaningful content differences.
+
+Each point should clearly state:
+- What changed
+- Where it was found
+- Why it's significant (only if needed for clarity)
+
+#### Examples:
+1. The clause about refund policy is stricter in Document 2 (“non-refundable”) compared to Document 1 (“partially refundable”).
+2. Document 1 includes a clause on late payment penalties, which is missing in Document 2.
+3. The timeline for delivery is specified as "30 days" in Document 1 but "45 days" in Document 2.
+
+If there are **no meaningful content differences**, respond with:  
 **"NO_CONTENT_DIFFERENCE"**
 
 ---
 
-**Section Name:** {section}
+### 🔖 Section Name:
+{section}
 
-**Filed Copy (Document 1):**  
+### 📄 Filed Copy (Document 1 - cleaned):
 {doc1_cleaned}
 
-**Customer Copy (Document 2):**  
+### 📄 Customer Copy (Document 2 - cleaned):
 {doc2_cleaned}
 """
 
