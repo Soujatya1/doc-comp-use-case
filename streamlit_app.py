@@ -350,17 +350,19 @@ class DocumentComparer:
         display_doc2 = doc2_original if doc2_original is not None else doc2_cleaned
 
         system_prompt = f"""
-You are a document comparison expert. Your task is to analyze and compare two versions of the same section: the **Filed Copy** (Document 1) and the **Customer Copy** (Document 2).
+You are an expert in document comparison. Compare the following two documents side by side and list all *meaningful content differences* between them. Focus only on:
 
----
+1. Personalized information vs. placeholders (e.g., names, dates, addresses, IDs).
+2. Changes in document structure (e.g., additional or missing fields, formatting differences).
+3. Differences in listed sections or tables (e.g., document types, identification numbers).
+4. Wording or content differences in policy clauses or instructions.
+5. Presence or absence of any visual elements (e.g., QR codes, headers).
 
-### 🔍 Objective:
-Identify all **meaningful content differences** between the two versions using a **semantic diffing approach** inspired by Longest Common Subsequence (LCS) and Levenshtein Distance. Focus on *changes in meaning* rather than formatting or structural differences.
-
-IMPORTANT POINTS TO BE CONSIDERED:
-1. No serialization differences
-2. No Labelling differences
-3. ONLY contextually meaningful differences
+Important instructions:
+- Ignore differences in formatting unless it impacts meaning or content.
+- Do not compare serial numbers or boilerplate styles unless content is affected.
+- Present the differences clearly in a structured format (such as a table or grouped bullet points).
+- End with a concise summary of key content-level differences.
 
 ### 🔖 Section Name:
 {section}
