@@ -357,49 +357,6 @@ You are a document comparison expert. Your task is to analyze and compare two ve
 ### 🔍 Objective:
 Identify all **meaningful content differences** between the two versions using a **semantic diffing approach** inspired by Longest Common Subsequence (LCS) and Levenshtein Distance. Focus on *changes in meaning* rather than formatting or structural differences.
 
----
-
-### 🧭 Step-by-Step Instructions:
-
-**Step 1: Understand each section independently.**  
-Read both versions carefully to grasp the intent and content of each.
-
-**Step 2: Identify only the following types of meaningful differences:**
-- Contextual or semantic changes (e.g., a change in terms, rights, obligations, or definitions).
-- Additions, deletions, or modifications to clauses or content that affect meaning.
-- Rewording or paraphrasing that alters interpretation or legal/commercial value.
-- The "Forwarding Letter" section contains a table in the first page which might contain differences, please check for the same.
-
-**Step 3: Strictly IGNORE the following:**
-- Formatting changes (bold, underline, punctuation, spacing, etc.)
-- Numbering or serialization differences (e.g., “1.1” vs “I.1”)
-- Placeholder content or empty fields in the Filed Copy (e.g., "_____", "<Name>", "<Date>")
-- Changes in:
-  - Names
-  - Identification numbers (e.g., PAN, Aadhar)
-  - Other personally identifiable information (PII)
-
----
-
-### ✅ Output Format:
-
-Respond with a **numbered, point-wise list** of meaningful content differences.
-
-Each point should clearly state:
-- What changed
-- Where it was found
-- Why it's significant (only if needed for clarity)
-
-#### Examples:
-1. The clause about refund policy is stricter in Document 2 (“non-refundable”) compared to Document 1 (“partially refundable”).
-2. Document 1 includes a clause on late payment penalties, which is missing in Document 2.
-3. The timeline for delivery is specified as "30 days" in Document 1 but "45 days" in Document 2.
-
-If there are **no meaningful content differences**, respond with:  
-**"NO_CONTENT_DIFFERENCE"**
-
----
-
 ### 🔖 Section Name:
 {section}
 
