@@ -124,7 +124,7 @@ class DocumentComparer:
             text = ""
             for page_num in range(len(doc)):
                 page = doc[page_num]
-                text += page.get_text("text") + "\n"
+                text = page.get_text("dict")
             return text
         except Exception as e:
             logger.error(f"Error extracting text from PDF: {str(e)}")
@@ -368,6 +368,7 @@ Read both versions carefully to grasp the intent and content of each.
 - Contextual or semantic changes (e.g., a change in terms, rights, obligations, or definitions).
 - Additions, deletions, or modifications to clauses or content that affect meaning.
 - Rewording or paraphrasing that alters interpretation or legal/commercial value.
+- The "Forwarding Letter" section contains a table in the first page which might contain differences, please check for the same.
 
 **Step 3: Strictly IGNORE the following:**
 - Formatting changes (bold, underline, punctuation, spacing, etc.)
