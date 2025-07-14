@@ -350,13 +350,13 @@ class DocumentComparer:
         display_doc2 = doc2_original if doc2_original is not None else doc2_cleaned
 
         system_prompt = f"""
-You are an expert in document comparison. Compare the following two documents side by side and list all *meaningful content differences* between them. Focus only on:
+You are an expert in document comparison. Compare the following two documents side by side and list all *meaningful content differences* between them.
 
-1. Personalized information vs. placeholders (e.g., names, dates, addresses, IDs).
-2. Changes in document structure (e.g., additional or missing fields, formatting differences).
-3. Differences in listed sections or tables (e.g., document types, identification numbers).
-4. Wording or content differences in policy clauses or instructions.
-5. Presence or absence of any visual elements (e.g., QR codes, headers).
+For section, "FORWARDING LETTER", Focus on differences in:
+  - List of required documents
+  - Free-look clause and refund conditions
+  - Regulatory references (like Section 45 of Insurance Act)
+  - Instructions related to cancellation, servicing, or policy issuance
 
 Important instructions:
 - Ignore differences in formatting unless it impacts meaning or content.
