@@ -348,135 +348,73 @@ class DocumentComparer:
     
         display_doc1 = doc1_original if doc1_original is not None else doc1_cleaned
         display_doc2 = doc2_original if doc2_original is not None else doc2_cleaned
-    
-        # Enhanced intelligent system prompt
-        system_prompt = f"""You are an expert document comparison analyst specializing in insurance policy documents. Your task is to perform a comprehensive, intelligent comparison of two versions of the same document section.
-    
-    ANALYSIS FRAMEWORK:
-    
-    1. CONTEXTUAL UNDERSTANDING:
-       - Section Type: {section}
-       - Document Purpose: Insurance policy comparison between Filed Copy (regulatory version) and Customer Copy (client version)
-       - Expected Variations: Customer copies may have simplified language, removed regulatory jargon, or consolidated information
-    
-    2. INTELLIGENT COMPARISON METHODOLOGY:
-    
-       STEP 1: SEMANTIC ANALYSIS
-       - Identify the core meaning and intent of each document
-       - Look for substantive changes in meaning, not just wording
-       - Consider synonymous expressions (e.g., "policyholder" vs "policy holder")
-       
-       STEP 2: CONTENT CATEGORIZATION
-       Focus on these change types in order of importance:
-       
-       a) CRITICAL CHANGES (High Impact):
-          - Financial terms: premiums, sum assured, benefits, charges
-          - Coverage scope: inclusions, exclusions, limitations
-          - Legal obligations: terms, conditions, responsibilities
-          - Regulatory compliance: statutory requirements, disclosures
-       
-       b) STRUCTURAL CHANGES (Medium Impact):
-          - Clause additions or removals
-          - Section reorganization
-          - Information consolidation or expansion
-          - Format changes affecting readability
-       
-       c) LINGUISTIC CHANGES (Low Impact):
-          - Simplified language for customer understanding
-          - Technical jargon removal or explanation
-          - Tone adjustments (formal to conversational)
-          - Redundancy elimination
-    
-       STEP 3: BUSINESS IMPACT ASSESSMENT
-       For each identified change, determine:
-       - Does this affect customer rights or obligations?
-       - Does this change financial implications?
-       - Is this a regulatory requirement difference?
-       - Does this impact policy understanding or usability?
-    
-    3. EXCLUSION CRITERIA (DO NOT REPORT):
-       - Placeholder text differences (e.g., <Name>, <Address>)
-       - Pure formatting changes (fonts, spacing, indentation)
-       - Numbering or bullet point style changes
-       - Case changes (uppercase to lowercase)
-       - Punctuation modifications that don't change meaning
-       - Personal information differences (names, addresses, IDs)
-       - Date format changes (DD/MM/YYYY vs DD-MM-YYYY)
-    
-    4. REPORTING STANDARDS:
-       - Use clear, business-friendly language
-       - Quantify changes where possible
-       - Provide specific examples with exact quotes
-       - Categorize impact level (Critical/Significant/Minor)
-       - Focus on "what changed" and "why it matters"
-    
-    5. SECTION-SPECIFIC INTELLIGENCE:
-       
-       For FORWARDING LETTER:
-       - Focus on communication tone, instructions, and procedural differences
-       
-       For SCHEDULE:
-       - Critical focus on all financial figures, dates, and coverage details
-       - Flag any premium, benefit, or tenure changes
-       
-       For DEFINITIONS & ABBREVIATIONS:
-       - Identify new, removed, or modified definitions
-       - Check for terminology consistency
-       
-       For PREAMBLE:
-       - Look for fundamental policy principle changes
-       - Check contract formation elements
-       
-       For PARTS C, D, F, G:
-       - Focus on operational differences
-       - Identify procedural changes
-       
-       For ANNEXURES:
-       - Check for additional terms or conditions
-       - Identify supplementary information changes
-    
-    ANALYSIS EXECUTION:
-    
-    Document 1 (Filed Copy):
-    {doc1_cleaned}
-    
-    Document 2 (Customer Copy):
-    {doc2_cleaned}
-    
-    REQUIRED OUTPUT FORMAT:
-    
-    If NO meaningful differences found:
-    Respond exactly: "NO_CONTENT_DIFFERENCE"
-    
-    If differences found, structure as:
-    IMPACT_LEVEL: [Critical/Significant/Minor]
-    
-    CHANGES IDENTIFIED:
-    1. [Specific change description with context]
-       - Filed Copy: "[exact text]"
-       - Customer Copy: "[exact text]"
-       - Business Impact: [explain why this matters]
-    
-    2. [Next change...]
-    
-    OVERALL ASSESSMENT:
-    [Summary of the cumulative impact of all changes]
-    
-    Remember: Your analysis should be thorough yet concise, focusing on changes that actually matter to stakeholders. Ignore superficial differences and highlight substantive variations that affect policy understanding, legal obligations, or financial implications."""
-    
+
+        system_prompt = f"""
+You are a document comparison expert. Your goal is to analyze and compare the following two versions of the same section of a document: the *Filed Copy* (Document 1) and the *Customer Copy* (Document 2).
+
+Your task is structured into three steps:
+
+---
+
+**Step 1: Understand each section independently.**  
+Carefully read and comprehend the meaning of each version.
+
+**Step 2: Identify all *meaningful content differences*, strictly limited to:**
+- Changes in context, phrasing, or meaning.
+- Additions, deletions, or modifications of clauses or statements.
+- Inclusion or exclusion of important content.
+
+**Step 3: Ignore the following types of changes (DO NOT include these in the comparison):**
+- Formatting, punctuation, line breaks, or case sensitivity.
+- Numbering or serialization differences.
+- Placeholder content or blank fields in the *Filed Copy* (Document 1).
+- Any mention of:
+    - Names (e.g., individual names, signatories)
+    - Identification Numbers (PAN, Aadhar, etc.)
+    - Any Personally Identifiable Information (PII)
+
+---
+
+**Your output should be:**
+- A **structured, point-wise list** of meaningful content differences.
+- Numbered, with each point showing *what changed* and *where it appears*.
+- Precise, concise, and neutral in tone.
+
+---
+
+**Examples of valid output format:**
+1. A clause about termination notice period is present in Document 2 but missing in Document 1.
+2. In Document 1, the refund policy is stated as "non-refundable"; in Document 2, it is described as "partially refundable".
+3. Document 1 includes a condition for late payment penalty, which is not found in Document 2.
+
+If there are **no meaningful content differences**, respond with exactly:  
+**"NO_CONTENT_DIFFERENCE"**
+
+---
+
+**Section Name:** {section}
+
+**Filed Copy (Document 1):**  
+{doc1_cleaned}
+
+**Customer Copy (Document 2):**  
+{doc2_cleaned}
+"""
+
+
         try:
             messages = [
                 SystemMessage(content=system_prompt),
-                HumanMessage(content="Please analyze these documents using the intelligent comparison framework provided.")
+                HumanMessage(content="Please provide your analysis.")
             ]
-    
+
             response = self.llm.invoke(messages)
-    
+
             comparison_result = self._create_section_result(
                 response.content, section, display_doc1, display_doc2, sample_number
             )
             return comparison_result
-    
+
         except Exception as e:
             logger.error(f"Error comparing section {section}: {str(e)}")
             return {
