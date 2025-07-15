@@ -355,12 +355,6 @@ Step 1: Understand each section separately.
 
 Step 2: Identify all *content (text and context) differences* between them
 
-For section, "FORWARDING LETTER", Focus on differences in:
-  - List of required documents
-  - Free-look clause and refund conditions
-  - Regulatory references (like Section 45 of Insurance Act)
-  - Instructions related to cancellation, servicing, or policy issuance
-
 EXCLUDE:
 1. Names
 2. Identification Numbers
