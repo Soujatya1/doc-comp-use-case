@@ -10,6 +10,7 @@ import re
 from typing import Dict, List, Tuple
 import logging
 from datetime import datetime
+import pdfplumber
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -118,17 +119,34 @@ class DocumentComparer:
         
         return cleaned_text
 
-    def extract_text_from_pdf(self, pdf_file) -> str:
+    def extract_text_from_pdf(self, pdf_file) -> dict:
         try:
             doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
-            text = ""
+            content = {
+                'text': '',
+                'tables': []
+            }
+            
             for page_num in range(len(doc)):
                 page = doc[page_num]
-                text += page.get_text("text") + "\n"
-            return text
+                
+                # Extract regular text
+                content['text'] += page.get_text("text") + "\n"
+                
+                # Extract tables
+                tables = page.find_tables()
+                for table in tables:
+                    table_data = table.extract()
+                    content['tables'].append({
+                        'page': page_num + 1,
+                        'data': table_data
+                    })
+            
+            doc.close()
+            return content
         except Exception as e:
-            logger.error(f"Error extracting text from PDF: {str(e)}")
-            return ""
+            logger.error(f"Error extracting content from PDF: {str(e)}")
+            return {'text': '', 'tables': []}
 
     def extract_sample_number_from_filename(self, filename: str) -> str:
         patterns = [
@@ -349,31 +367,25 @@ class DocumentComparer:
         display_doc1 = doc1_original if doc1_original is not None else doc1_cleaned
         display_doc2 = doc2_original if doc2_original is not None else doc2_cleaned
 
-        system_prompt = f"""
-You are an expert in document comparison. Compare the following two documents side by side and list all *meaningful content differences* between them.
+        system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and display ONLY the meaningful and contextual differences between the same
 
-For section, "FORWARDING LETTER", Focus on differences in:
-  - List of required documents
-  - Free-look clause and refund conditions
-  - Regulatory references (like Section 45 of Insurance Act)
-  - Instructions related to cancellation, servicing, or policy issuance
+IGNORE:
+1. Different language or script differences
+2. Spacing/indentation/numbering/serialization differences
 
-Important instructions:
-- Ignore differences in formatting unless it impacts meaning or content.
-- Do not compare serial numbers or boilerplate styles unless content is affected.
-- Present the differences clearly in a structured format (such as a table or grouped bullet points).
-- End with a concise summary of key content-level differences.
+Section Name: {section}
 
-### 🔖 Section Name:
-{section}
+Compare the two documents as:
+- Filed Copy = Document 1
+- Customer Copy = Document 2
 
-### 📄 Filed Copy (Document 1 - cleaned):
+Filed Copy (cleaned for comparison):
 {doc1_cleaned}
 
-### 📄 Customer Copy (Document 2 - cleaned):
+Customer Copy (cleaned for comparison):
 {doc2_cleaned}
-"""
 
+"""
 
         try:
             messages = [
