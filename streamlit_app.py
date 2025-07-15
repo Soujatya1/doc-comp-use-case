@@ -72,9 +72,9 @@ class DocumentComparer:
         
         cleaned_text = text
         
-        # Remove any content within angle brackets that contains letters or numbers
-        # This pattern matches <...> where ... contains at least one letter or number
-        pattern = r'<[^<>]*[a-zA-Z0-9][^<>]*>'
+        # Remove any content within angle brackets that contains at least one letter or number
+        # Using positive lookahead to ensure there's at least one alphanumeric character inside
+        pattern = r'<(?=.*[a-zA-Z0-9])[^<>]*>'
         cleaned_text = re.sub(pattern, '[PLACEHOLDER]', cleaned_text)
         
         # Normalize whitespace
