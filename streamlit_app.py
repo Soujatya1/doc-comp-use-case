@@ -69,54 +69,26 @@ class DocumentComparer:
         
         cleaned_text = text
         
-
-        cleaned_text = re.sub(r'<[^<>]*>', '', cleaned_text, flags=re.DOTALL)
-        
-        max_iterations = 10
-        iteration = 0
-        
-        while iteration < max_iterations:
-            prev_length = len(cleaned_text)
-            
-            cleaned_text = re.sub(r'<[^<>]*>', '', cleaned_text)
-            
-            cleaned_text = re.sub(r'<[^>]*$', '', cleaned_text)
-            cleaned_text = re.sub(r'^[^<]*>', '', cleaned_text)
-            
-            if len(cleaned_text) == prev_length:
-                break
-            iteration += 1
-
-        specific_patterns = [
+        # Only remove clearly placeholder content, not all angle brackets
+        placeholder_patterns = [
             r'<\s*Name\s+of\s+the\s+Policyholder\s*>',
             r'<\s*Address\s+of\s+the\s+Policyholder\s*>',
             r'<\s*Mr\./Mrs\./Ms\.\s*>',
-            r'<\s*Mr\./Mrs\.\s*>',
-            r'<\s*Your\s+Policy\s+requires[^<>]*>',
             r'<\s*x+\s*>',
             r'<\s*X+\s*>',
-            r'<\s*[x]+\s*>',
-            r'<\s*[X]+\s*>',
+            r'<\s*[Dd]ate\s*>',
+            r'<\s*[Aa]mount\s*>',
+            r'<\s*[Nn]umber\s*>',
         ]
         
-        for pattern in specific_patterns:
-            cleaned_text = re.sub(pattern, '', cleaned_text, flags=re.IGNORECASE)
+        for pattern in placeholder_patterns:
+            cleaned_text = re.sub(pattern, '[PLACEHOLDER]', cleaned_text, flags=re.IGNORECASE)
         
-        cleaned_text = re.sub(r'<[^<>]*>', '', cleaned_text)
-        
-        cleaned_text = re.sub(r'[ \t]+', ' ', cleaned_text)
-        
-        cleaned_text = re.sub(r'\n[ \t]+', '\n', cleaned_text)
-        cleaned_text = re.sub(r'[ \t]+\n', '\n', cleaned_text)
-        
+        # Normalize whitespace
+        cleaned_text = re.sub(r'\s+', ' ', cleaned_text)
         cleaned_text = re.sub(r'\n\s*\n', '\n\n', cleaned_text)
-        cleaned_text = re.sub(r'\n{3,}', '\n\n', cleaned_text)
         
-        cleaned_text = re.sub(r'  +', ' ', cleaned_text)
-        
-        cleaned_text = cleaned_text.strip()
-        
-        return cleaned_text
+        return cleaned_text.strip()
 
     def extract_text_from_pdf(self, pdf_file) -> str:
         try:
@@ -349,42 +321,156 @@ class DocumentComparer:
         display_doc1 = doc1_original if doc1_original is not None else doc1_cleaned
         display_doc2 = doc2_original if doc2_original is not None else doc2_cleaned
 
-        system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and do the following:
+        system_prompt = section_guidance = {
+        "FORWARDING LETTER": """
+        Focus specifically on differences in:
+        - Required document lists (additions, removals, or changes)
+        - Free-look period duration and conditions
+        - Cancellation procedures and timelines
+        - Regulatory references (Section 45 of Insurance Act, IRDAI regulations)
+        - Contact information for policy servicing
+        - Instructions for policy issuance or modifications
+        - Refund conditions and procedures
+        """,
+        "SCHEDULE": """
+        Focus specifically on differences in:
+        - Policy terms and durations
+        - Premium amounts and payment frequencies
+        - Coverage limits and benefit amounts
+        - Policy effective dates and renewal terms
+        - Rider information and additional benefits
+        - Sum assured or coverage amounts
+        """,
+        "PREAMBLE": """
+        Focus specifically on differences in:
+        - Legal declarations and statements
+        - Regulatory compliance language
+        - Policy introduction and purpose
+        - Legal framework references
+        - Contractual terms and conditions
+        """,
+        "DEFINITIONS & ABBREVIATIONS": """
+        Focus specifically on differences in:
+        - Definition changes or additions
+        - New abbreviations or modifications
+        - Terminology clarifications
+        - Legal or technical term explanations
+        """,
+        "PART C": """
+        Focus specifically on differences in:
+        - Benefit descriptions and conditions
+        - Eligibility criteria
+        - Exclusions and limitations
+        - Claim procedures
+        """,
+        "PART D": """
+        Focus specifically on differences in:
+        - Premium payment terms
+        - Grace period provisions
+        - Lapse and revival conditions
+        - Premium calculation methods
+        """,
+        "PART F": """
+        Focus specifically on differences in:
+        - Claim settlement procedures
+        - Required documentation for claims
+        - Claim processing timelines
+        - Dispute resolution mechanisms
+        """,
+        "PART G": """
+        Focus specifically on differences in:
+        - General conditions and provisions
+        - Policy administration procedures
+        - Regulatory compliance requirements
+        - Miscellaneous terms and conditions
+        """,
+        "ANNEXURE AA": """
+        Focus specifically on differences in:
+        - Specific annexure content
+        - Additional terms and conditions
+        - Supplementary information
+        """,
+        "ANNEXURE BB": """
+        Focus specifically on differences in:
+        - Specific annexure content
+        - Additional terms and conditions
+        - Supplementary information
+        """,
+        "ANNEXURE CC": """
+        Focus specifically on differences in:
+        - Specific annexure content
+        - Additional terms and conditions
+        - Supplementary information
+        """
+    }
+    
+    specific_guidance = section_guidance.get(section, """
+    Focus on all meaningful content differences including:
+    - Changes in terms, conditions, or procedures
+    - Addition or removal of clauses
+    - Modifications in amounts, percentages, or timeframes
+    """)
+    
+    return f"""You are an expert document comparison analyst specializing in insurance policy documents. Your task is to perform a precise comparison of two versions of the same document section.
 
-Step 1: Understand each section separately.
+SECTION BEING ANALYZED: {section}
 
-Step 2: Identify all *content (text and context) differences* between them
+SPECIFIC ANALYSIS FOCUS:
+{specific_guidance}
 
-For section, "FORWARDING LETTER", Focus on differences in:
-  - List of required documents
-  - Free-look clause and refund conditions
-  - Regulatory references (like Section 45 of Insurance Act)
-  - Instructions related to cancellation, servicing, or policy issuance
+COMPARISON INSTRUCTIONS:
 
-EXCLUDE:
-1. Names
-2. Identification Numbers
-3. PII information
+1. WHAT TO IDENTIFY AS MEANINGFUL DIFFERENCES:
+   ✓ Changes in policy terms, conditions, or procedures
+   ✓ Addition or removal of clauses, requirements, or benefits
+   ✓ Modifications in amounts, percentages, timeframes, or durations
+   ✓ Changes in contact information, addresses, or service procedures
+   ✓ Alterations in regulatory references or compliance requirements
+   ✓ Different document requirements or submission procedures
+   ✓ Changes in legal language that affect policy interpretation
 
-Step 3: Present a structured, **point-wise list** of the meaningful differences, e.g.:
-1. Date changed from 'X' in Document 1 to 'Y' in Document 2.
-2. The clause about <topic> is present in Document 2 but missing in Document 1.
-3. Name changed from 'Mr. X' to 'Mr. Y'.
+2. WHAT TO IGNORE (NOT meaningful differences):
+   ✗ Personal names (policyholder names, beneficiary names)
+   ✗ Policy numbers, application numbers, certificate numbers
+   ✗ Personal identification numbers (Aadhaar, PAN, etc.)
+   ✗ Personal addresses, phone numbers, email addresses
+   ✗ Dates that are clearly personalized (policy issue dates, birth dates)
+   ✗ Formatting differences (spacing, font, alignment)
+   ✗ Placeholder text like <Name>, <Address>, <Number>
+   ✗ Minor grammatical or spelling corrections that don't change meaning
 
-Section Name: {section}
+3. OUTPUT FORMAT:
+   If you find meaningful differences, present them as a clear, numbered list:
+   
+   1. [Specific description of difference]
+   2. [Another difference if found]
+   3. [Continue numbering for each difference]
 
-Compare the two documents as:
-- Filed Copy = Document 1
-- Customer Copy = Document 2
+   If NO meaningful differences exist, respond with exactly:
+   "NO_MEANINGFUL_DIFFERENCES"
 
-Filed Copy (cleaned for comparison):
+4. EXAMPLES OF GOOD DIFFERENCE DESCRIPTIONS:
+   ✓ "Free-look period changed from 15 days in Filed Copy to 30 days in Customer Copy"
+   ✓ "Additional document requirement added in Customer Copy: PAN card photocopy"
+   ✓ "Contact email for policy servicing changed from service@oldcompany.com to help@newcompany.com"
+   ✓ "Section 45 reference removed from Customer Copy"
+   ✓ "Premium payment grace period extended from 30 days to 45 days in Customer Copy"
+
+5. EXAMPLES OF DIFFERENCES TO IGNORE:
+   ✗ "Policyholder name changed from John Smith to Jane Doe"
+   ✗ "Policy number changed from POL123456 to POL789012"
+   ✗ "Different formatting in address layout"
+
+DOCUMENTS TO COMPARE:
+
+FILED COPY CONTENT:
 {doc1_cleaned}
 
-Customer Copy (cleaned for comparison):
+CUSTOMER COPY CONTENT:
 {doc2_cleaned}
 
-Respond only with the final response after understanding and following the above steps. If no meaningful content differences are found, clearly respond: "NO_CONTENT_DIFFERENCE".
-"""
+ANALYSIS INSTRUCTION:
+Analyze both documents carefully and identify only meaningful content differences as defined above. Be precise and specific in your descriptions. If no meaningful differences exist, respond with "NO_MEANINGFUL_DIFFERENCES"."""
 
         try:
             messages = [
