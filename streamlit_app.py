@@ -353,17 +353,17 @@ class DocumentComparer:
 
 Step 1: Understand each section separately.
 
-Step 2: Identify all *content (text and context) differences* between them
+Step 2: Identify all *content (contextual) differences* between them
 
 EXCLUDE:
 1. Names
 2. Identification Numbers
 3. PII information
+4. Serialization/ Numbering
 
 Step 3: Present a structured, **point-wise list** of the meaningful differences, e.g.:
 1. Date changed from 'X' in Document 1 to 'Y' in Document 2.
 2. The clause about <topic> is present in Document 2 but missing in Document 1.
-3. Name changed from 'Mr. X' to 'Mr. Y'.
 
 Section Name: {section}
 
