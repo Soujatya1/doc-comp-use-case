@@ -63,13 +63,12 @@ class DocumentComparer:
         self.chunk_size = 8000
 
     def clean_text_for_comparison(self, text: str) -> str:
-
         if not text or text == "NOT FOUND":
             return text
         
         cleaned_text = text
         
-
+        # Remove HTML-like tags
         cleaned_text = re.sub(r'<[^<>]*>', '', cleaned_text, flags=re.DOTALL)
         
         max_iterations = 10
@@ -118,8 +117,10 @@ class DocumentComparer:
         
         return cleaned_text
 
-    def extract_text_from_pdf(self, pdf_file):
-
+    def extract_content_from_pdf(self, pdf_file):
+        """
+        Enhanced PDF extraction using pdfplumber to handle both text and tables
+        """
         try:
             content = []
             with pdfplumber.open(pdf_file) as pdf:
@@ -160,11 +161,17 @@ class DocumentComparer:
         return "001"
 
     def is_image_only_page(self, page):
-        text = page.get_text("text").strip()
-        return not text and (page.get_images(full=True) or page.get_drawings())
+        """
+        Note: This method is now less relevant with pdfplumber approach
+        but kept for compatibility with existing filtered PDF extraction
+        """
+        text = page.extract_text().strip() if hasattr(page, 'extract_text') else ""
+        return not text
 
     def extract_final_filtered_pdf(self, uploaded_file_bytes, is_customer_copy=False):
-
+        """
+        Updated to work with pdfplumber instead of fitz
+        """
         try:
             filtered_content = []
             text_summary = ""
