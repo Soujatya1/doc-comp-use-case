@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import fitz
+import pdfplumber
 import io
 from langchain_openai import AzureChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
