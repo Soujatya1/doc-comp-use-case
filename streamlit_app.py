@@ -63,21 +63,15 @@ class DocumentComparer:
         self.chunk_size = 8000
 
     def clean_text_for_comparison(self, text: str) -> str:
-        """
-        Clean text for comparison by removing placeholders and normalizing whitespace.
-        Removes any content within angle brackets <> that contains letters or numbers.
-        """
+
         if not text or text == "NOT FOUND":
             return text
         
         cleaned_text = text
         
-        # Remove any content within angle brackets that contains at least one letter or number
-        # Using positive lookahead to ensure there's at least one alphanumeric character inside
         pattern = r'<(?=.*[a-zA-Z0-9])[^<>]*>'
-        cleaned_text = re.sub(pattern, '[PLACEHOLDER]', cleaned_text)
+        cleaned_text = re.sub(pattern, '', cleaned_text)
         
-        # Normalize whitespace
         cleaned_text = re.sub(r'\s+', ' ', cleaned_text)
         cleaned_text = re.sub(r'\n\s*\n', '\n\n', cleaned_text)
         
