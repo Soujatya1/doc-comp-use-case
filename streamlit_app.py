@@ -62,6 +62,34 @@ class DocumentComparer:
         self.max_input_chars = 12000
         self.chunk_size = 8000
 
+    def clean_text_for_comparison(self, text: str) -> str:
+
+        if not text or text == "NOT FOUND":
+            return text
+        
+        cleaned_text = text
+        
+        # Only remove clearly placeholder content, not all angle brackets
+        placeholder_patterns = [
+            r'<\s*Name\s+of\s+the\s+Policyholder\s*>',
+            r'<\s*Address\s+of\s+the\s+Policyholder\s*>',
+            r'<\s*Mr\./Mrs\./Ms\.\s*>',
+            r'<\s*x+\s*>',
+            r'<\s*X+\s*>',
+            r'<\s*[Dd]ate\s*>',
+            r'<\s*[Aa]mount\s*>',
+            r'<\s*[Nn]umber\s*>',
+        ]
+        
+        for pattern in placeholder_patterns:
+            cleaned_text = re.sub(pattern, '[PLACEHOLDER]', cleaned_text, flags=re.IGNORECASE)
+        
+        # Normalize whitespace
+        cleaned_text = re.sub(r'\s+', ' ', cleaned_text)
+        cleaned_text = re.sub(r'\n\s*\n', '\n\n', cleaned_text)
+        
+        return cleaned_text.strip()
+
     def extract_text_from_pdf(self, pdf_file) -> str:
         try:
             doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
@@ -261,8 +289,8 @@ class DocumentComparer:
             doc1_content = doc1_sections.get(section, "NOT FOUND")
             doc2_content = doc2_sections.get(section, "NOT FOUND")
 
-            doc1_cleaned = self.extract_text_from_pdf(doc1_content)
-            doc2_cleaned = self.extract_text_from_pdf(doc2_content)
+            doc1_cleaned = self.clean_text_for_comparison(doc1_content)
+            doc2_cleaned = self.clean_text_for_comparison(doc2_content)
 
             total_content_size = len(doc1_cleaned) + len(doc2_cleaned)
         
@@ -287,7 +315,12 @@ class DocumentComparer:
         return comparison_results
 
     def create_improved_system_prompt(self, section: str, doc1_cleaned: str, doc2_cleaned: str) -> str:
+        """
+        Creates an improved system prompt for document comparison with better instructions
+        and section-specific guidance.
+        """
         
+        # Section-specific focus areas
         section_guidance = {
             "FORWARDING LETTER": """
             Focus specifically on differences in:
@@ -388,24 +421,23 @@ class DocumentComparer:
     COMPARISON INSTRUCTIONS:
     
     1. WHAT TO IDENTIFY AS MEANINGFUL DIFFERENCES:
-       - Changes in policy terms, conditions, or procedures
-       - Addition or removal of clauses, requirements, or benefits
-       - Modifications in amounts, percentages, timeframes, or durations
-       - Changes in contact information, addresses, or service procedures
-       - Alterations in regulatory references or compliance requirements
-       - Different document requirements or submission procedures
-       - Changes in legal language that affect policy interpretation
+       ✓ Changes in policy terms, conditions, or procedures
+       ✓ Addition or removal of clauses, requirements, or benefits
+       ✓ Modifications in amounts, percentages, timeframes, or durations
+       ✓ Changes in contact information, addresses, or service procedures
+       ✓ Alterations in regulatory references or compliance requirements
+       ✓ Different document requirements or submission procedures
+       ✓ Changes in legal language that affect policy interpretation
     
     2. WHAT TO IGNORE (NOT meaningful differences):
-       - Personal names (policyholder names, beneficiary names)
-       - Policy numbers, application numbers, certificate numbers
-       - Personal identification numbers (Aadhaar, PAN, etc.)
-       - Personal addresses, phone numbers, email addresses
-       - Dates that are clearly personalized (policy issue dates, birth dates)
-       - Formatting differences (spacing, font, alignment)
-       - Placeholder text like <Name>, <Address>, <Number>
-       - Minor grammatical or spelling corrections that don't change meaning
-       - Ignore Placeholders and do not account for those differences
+       ✗ Personal names (policyholder names, beneficiary names)
+       ✗ Policy numbers, application numbers, certificate numbers
+       ✗ Personal identification numbers (Aadhaar, PAN, etc.)
+       ✗ Personal addresses, phone numbers, email addresses
+       ✗ Dates that are clearly personalized (policy issue dates, birth dates)
+       ✗ Formatting differences (spacing, font, alignment)
+       ✗ Placeholder text like <Name>, <Address>, <Number>
+       ✗ Minor grammatical or spelling corrections that don't change meaning
     
     3. OUTPUT FORMAT:
        If you find meaningful differences, present them as a clear, numbered list:
@@ -418,16 +450,16 @@ class DocumentComparer:
        "NO_MEANINGFUL_DIFFERENCES"
     
     4. EXAMPLES OF GOOD DIFFERENCE DESCRIPTIONS:
-       - "Free-look period changed from 15 days in Filed Copy to 30 days in Customer Copy"
-       - "Additional document requirement added in Customer Copy: PAN card photocopy"
-       - "Contact email for policy servicing changed from service@oldcompany.com to help@newcompany.com"
-       - "Section 45 reference removed from Customer Copy"
-       - "Premium payment grace period extended from 30 days to 45 days in Customer Copy"
+       ✓ "Free-look period changed from 15 days in Filed Copy to 30 days in Customer Copy"
+       ✓ "Additional document requirement added in Customer Copy: PAN card photocopy"
+       ✓ "Contact email for policy servicing changed from service@oldcompany.com to help@newcompany.com"
+       ✓ "Section 45 reference removed from Customer Copy"
+       ✓ "Premium payment grace period extended from 30 days to 45 days in Customer Copy"
     
     5. EXAMPLES OF DIFFERENCES TO IGNORE:
-       - "Policyholder name changed from John Smith to Jane Doe"
-       - "Policy number changed from POL123456 to POL789012"
-       - "Different formatting in address layout"
+       ✗ "Policyholder name changed from John Smith to Jane Doe"
+       ✗ "Policy number changed from POL123456 to POL789012"
+       ✗ "Different formatting in address layout"
     
     DOCUMENTS TO COMPARE:
     
