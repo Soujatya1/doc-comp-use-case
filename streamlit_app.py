@@ -92,6 +92,30 @@ class DocumentComparer:
         text = page.get_text("text").strip()
         return not text and (page.get_images(full=True) or page.get_drawings())
 
+    def preprocess_content_for_comparison(self, content: str, is_filed_copy: bool = False) -> str:
+
+        if not is_filed_copy:
+            return content
+            
+        # Replace common placeholder patterns with standardized placeholders
+        placeholder_replacements = {
+            r'<dd/mm/yyyy>': '[DATE_PLACEHOLDER]',
+            r'<\w*[Dd]ate\w*>': '[DATE_PLACEHOLDER]',
+            r'<\w*[Nn]ame\w*>': '[NAME_PLACEHOLDER]',
+            r'<\w*[Nn]umber\w*>': '[NUMBER_PLACEHOLDER]',
+            r'<\w*[Aa]mount\w*>': '[AMOUNT_PLACEHOLDER]',
+            r'<\w*[Pp]hone\w*>': '[PHONE_PLACEHOLDER]',
+            r'<\w*[Ee]mail\w*>': '[EMAIL_PLACEHOLDER]',
+            r'<\w*[Aa]ddress\w*>': '[ADDRESS_PLACEHOLDER]',
+            r'<[^>]+>': '[GENERAL_PLACEHOLDER]',  # Catch-all for any remaining < >
+        }
+        
+        processed_content = content
+        for pattern, replacement in placeholder_replacements.items():
+            processed_content = re.sub(pattern, replacement, processed_content, flags=re.IGNORECASE)
+        
+        return processed_content
+
     def extract_final_filtered_pdf(self, uploaded_file_bytes, is_customer_copy=False):
         doc = fitz.open(stream=uploaded_file_bytes, filetype="pdf")
         filtered_doc = fitz.open()
@@ -476,7 +500,11 @@ class DocumentComparer:
         display_doc1 = doc1_original if doc1_original is not None else doc1_cleaned
         display_doc2 = doc2_original if doc2_original is not None else doc2_cleaned
 
-        system_prompt = self.create_improved_system_prompt(section, doc1_cleaned, doc2_cleaned)
+
+        processed_doc1 = self.preprocess_content_for_comparison(doc1_cleaned, is_filed_copy=True)
+        processed_doc2 = self.preprocess_content_for_comparison(doc2_cleaned, is_filed_copy=False)
+                               
+        system_prompt = self.create_improved_system_prompt(section, processed_doc1, processed_doc2)
         try:
             messages = [
                 SystemMessage(content=system_prompt),
