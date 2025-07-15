@@ -414,7 +414,19 @@ class DocumentComparer:
        ✗ Minor grammatical or spelling corrections that don't change meaning
        ✗ Numbering/serialization
     
-    3. OUTPUT FORMAT:
+    3. **CRITICAL: PLACEHOLDER HANDLING**
+       ✗ **IGNORE content enclosed in angle brackets < > in the Filed Copy** - these are placeholders
+       ✗ **DO NOT treat placeholder vs actual content as meaningful differences**
+       
+       Examples of what to IGNORE:
+       - Filed Copy: "Policy Date: <dd/mm/yyyy>" vs Customer Copy: "Policy Date: 15/01/2024"
+       - Filed Copy: "Name: <Policyholder Name>" vs Customer Copy: "Name: John Smith"
+       - Filed Copy: "Amount: <Premium Amount>" vs Customer Copy: "Amount: ₹50,000"
+       - Filed Copy: "Contact: <Phone Number>" vs Customer Copy: "Contact: +91-9876543210"
+       
+       **These are NOT meaningful differences - they represent template placeholders being filled with actual values.**
+    
+    4. OUTPUT FORMAT:
        If you find meaningful differences, present them as a clear, numbered list:
        
        1. [Specific description of difference]
@@ -424,23 +436,27 @@ class DocumentComparer:
        If NO meaningful differences exist, respond with exactly:
        "NO_MEANINGFUL_DIFFERENCES"
     
-    4. EXAMPLES OF GOOD DIFFERENCE DESCRIPTIONS:
+    5. EXAMPLES OF GOOD DIFFERENCE DESCRIPTIONS:
        ✓ "Free-look period changed from 15 days in Filed Copy to 30 days in Customer Copy"
        ✓ "Additional document requirement added in Customer Copy: PAN card photocopy"
        ✓ "Contact email for policy servicing changed from service@oldcompany.com to help@newcompany.com"
        ✓ "Section 45 reference removed from Customer Copy"
        ✓ "Premium payment grace period extended from 30 days to 45 days in Customer Copy"
     
-    5. EXAMPLES OF DIFFERENCES TO IGNORE:
+    6. EXAMPLES OF DIFFERENCES TO IGNORE:
        ✗ "Policyholder name changed from John Smith to Jane Doe"
        ✗ "Policy number changed from POL123456 to POL789012"
        ✗ "Different formatting in address layout"
-
-    6. PLACEHOLDER INSTRUCTIONS:
-    - When the difference output contains [PLACEHOLDER] or placeholder, replace the same with the context logic as to what the difference actually is for
-
-        Examples:
-        - Filed copy contains <dd/mm/yyyy> whereas custonmer copy contains 05/12/2024 for Policy Commencement Date, the output should be, "Policy Commencement Date in Filed copy is not present whereas in customer copy it is 05/12/2024"
+       ✗ "Filed Copy has <dd/mm/yyyy> while Customer Copy has 15/01/2024" (This is placeholder vs actual value)
+       ✗ "Filed Copy contains <Policy Number> whereas Customer Copy contains POL123456"
+    
+    7. PLACEHOLDER PATTERN RECOGNITION:
+       Look for these common placeholder patterns in Filed Copy and ignore differences with their actual values:
+       - Date patterns: <dd/mm/yyyy>, <Date>, <Policy Date>
+       - Name patterns: <Name>, <Policyholder Name>, <Nominee Name>
+       - Number patterns: <Policy Number>, <Application Number>, <Amount>
+       - Contact patterns: <Phone>, <Email>, <Address>
+       - Any content within angle brackets < >
     
     DOCUMENTS TO COMPARE:
     
@@ -451,7 +467,7 @@ class DocumentComparer:
     {doc2_cleaned}
     
     ANALYSIS INSTRUCTION:
-    Analyze both documents carefully and identify only meaningful content differences as defined above. Be precise and specific in your descriptions. If no meaningful differences exist, respond with "NO_MEANINGFUL_DIFFERENCES"."""
+    Analyze both documents carefully and identify only meaningful content differences as defined above. Pay special attention to ignoring placeholder content (anything in < > brackets) when comparing against actual values in the Customer Copy. Be precise and specific in your descriptions. If no meaningful differences exist, respond with "NO_MEANINGFUL_DIFFERENCES"."""
     
     def _compare_section_content(self, doc1_cleaned: str, doc2_cleaned: str, section: str, 
                            sample_number: str, doc1_original: str = None, 
