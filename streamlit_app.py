@@ -462,6 +462,9 @@ class DocumentComparer:
 
     6. PLACEHOLDER INSTRUCTIONS:
     - When the difference output contains [PLACEHOLDER] or placeholder, replace the same with the context logic as to what the difference actually is for
+
+        Examples:
+        - Filed copy contains <dd/mm/yyyy> whereas custonmer copy contains 05/12/2024 for Policy Commencement Date, the output should be, "Policy Commencement Date in Filed copy is not present whereas in customer copy it is 05/12/2024"
     
     DOCUMENTS TO COMPARE:
     
