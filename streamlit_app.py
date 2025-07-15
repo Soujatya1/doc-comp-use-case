@@ -405,6 +405,7 @@ class DocumentComparer:
        - Formatting differences (spacing, font, alignment)
        - Placeholder text like <Name>, <Address>, <Number>
        - Minor grammatical or spelling corrections that don't change meaning
+       - Ignore Placeholders and do not account for those differences
     
     3. OUTPUT FORMAT:
        If you find meaningful differences, present them as a clear, numbered list:
