@@ -118,30 +118,57 @@ class DocumentComparer:
         return cleaned_text
 
     def extract_text_from_pdf(self, pdf_file):
-        """
-        Enhanced PDF extraction using pdfplumber to handle both text and tables
-        """
+    """
+    Enhanced PDF extraction using pdfplumber to handle both text and tables
+    """
         try:
             content = []
+            all_tables = []  # Store all tables for debugging
+            
             with pdfplumber.open(pdf_file) as pdf:
-                for page in pdf.pages:
+                for page_num, page in enumerate(pdf.pages):
                     # Extract regular text
                     if page.extract_text():
                         content.append(page.extract_text())
                     
                     # Extract tables
                     tables = page.extract_tables()
-                    for table in tables:
+                    for table_idx, table in enumerate(tables):
                         if table:
+                            print(f"\n=== TABLE FOUND on Page {page_num + 1}, Table {table_idx + 1} ===")
+                            print(f"Table dimensions: {len(table)} rows x {len(table[0]) if table else 0} columns")
+                            
+                            # Print raw table structure
+                            print("Raw table data:")
+                            for row_idx, row in enumerate(table):
+                                print(f"Row {row_idx + 1}: {row}")
+                            
+                            # Process table for content
                             table_text = []
                             for row in table:
                                 row_text = [str(cell) if cell else "" for cell in row]
-                                table_text.append("| " + " | ".join(row_text) + " |")
+                                table_text.append(" | ".join(row_text))
+                            
                             if table_text:
-                                content.append("\n\nTABLE (Markdown format):")
-                                content.append("| " + " | ".join(["Column " + str(i+1) for i in range(len(table[0]))]) + " |")
-                                content.append("|" + "---|" * len(table[0]) + "")
-                                content.extend(table_text)
+                                print("\nProcessed table text:")
+                                for line in table_text:
+                                    print(f"  {line}")
+                                
+                                content.append("TABLE:")
+                                content.append("\n".join(table_text))
+                                
+                                # Store for debugging
+                                all_tables.append({
+                                    'page': page_num + 1,
+                                    'table_index': table_idx + 1,
+                                    'raw_data': table,
+                                    'processed_text': table_text
+                                })
+            
+            # Print summary of all tables found
+            print(f"\n=== SUMMARY: Found {len(all_tables)} tables total ===")
+            for table_info in all_tables:
+                print(f"Page {table_info['page']}, Table {table_info['table_index']}: {len(table_info['processed_text'])} rows")
             
             return "\n".join(content)
         except Exception as e:
