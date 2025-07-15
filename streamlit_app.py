@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import pdfplumber
+import fitz
 import io
 from langchain_openai import AzureChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
@@ -10,6 +10,7 @@ import re
 from typing import Dict, List, Tuple
 import logging
 from datetime import datetime
+import pdfplumber
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -63,12 +64,13 @@ class DocumentComparer:
         self.chunk_size = 8000
 
     def clean_text_for_comparison(self, text: str) -> str:
+
         if not text or text == "NOT FOUND":
             return text
         
         cleaned_text = text
         
-        # Remove HTML-like tags
+
         cleaned_text = re.sub(r'<[^<>]*>', '', cleaned_text, flags=re.DOTALL)
         
         max_iterations = 10
@@ -117,63 +119,34 @@ class DocumentComparer:
         
         return cleaned_text
 
-    def extract_text_from_pdf(self, pdf_file):
-        """
-        Enhanced PDF extraction using pdfplumber to handle both text and tables
-        """
+    def extract_text_from_pdf(self, pdf_file) -> dict:
         try:
-            content = []
-            all_tables = []  # Store all tables for debugging
+            doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
+            content = {
+                'text': '',
+                'tables': []
+            }
             
-            with pdfplumber.open(pdf_file) as pdf:
-                for page_num, page in enumerate(pdf.pages):
-                    # Extract regular text
-                    if page.extract_text():
-                        content.append(page.extract_text())
-                    
-                    # Extract tables
-                    tables = page.extract_tables()
-                    for table_idx, table in enumerate(tables):
-                        if table:
-                            print(f"\n=== TABLE FOUND on Page {page_num + 1}, Table {table_idx + 1} ===")
-                            print(f"Table dimensions: {len(table)} rows x {len(table[0]) if table else 0} columns")
-                            
-                            # Print raw table structure
-                            print("Raw table data:")
-                            for row_idx, row in enumerate(table):
-                                print(f"Row {row_idx + 1}: {row}")
-                            
-                            # Process table for content
-                            table_text = []
-                            for row in table:
-                                row_text = [str(cell) if cell else "" for cell in row]
-                                table_text.append(" | ".join(row_text))
-                            
-                            if table_text:
-                                print("\nProcessed table text:")
-                                for line in table_text:
-                                    print(f"  {line}")
-                                
-                                content.append("TABLE:")
-                                content.append("\n".join(table_text))
-                                
-                                # Store for debugging
-                                all_tables.append({
-                                    'page': page_num + 1,
-                                    'table_index': table_idx + 1,
-                                    'raw_data': table,
-                                    'processed_text': table_text
-                                })
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                
+                # Extract regular text
+                content['text'] += page.get_text("text") + "\n"
+                
+                # Extract tables
+                tables = page.find_tables()
+                for table in tables:
+                    table_data = table.extract()
+                    content['tables'].append({
+                        'page': page_num + 1,
+                        'data': table_data
+                    })
             
-            # Print summary of all tables found
-            print(f"\n=== SUMMARY: Found {len(all_tables)} tables total ===")
-            for table_info in all_tables:
-                print(f"Page {table_info['page']}, Table {table_info['table_index']}: {len(table_info['processed_text'])} rows")
-            
-            return "\n".join(content)
+            doc.close()
+            return content
         except Exception as e:
             logger.error(f"Error extracting content from PDF: {str(e)}")
-            return ""
+            return {'text': '', 'tables': []}
 
     def extract_sample_number_from_filename(self, filename: str) -> str:
         patterns = [
@@ -190,75 +163,48 @@ class DocumentComparer:
         return "001"
 
     def is_image_only_page(self, page):
-        """
-        Note: This method is now less relevant with pdfplumber approach
-        but kept for compatibility with existing filtered PDF extraction
-        """
-        text = page.extract_text().strip() if hasattr(page, 'extract_text') else ""
-        return not text
+        text = page.get_text("text").strip()
+        return not text and (page.get_images(full=True) or page.get_drawings())
 
     def extract_final_filtered_pdf(self, uploaded_file_bytes, is_customer_copy=False):
-        """
-        Updated to work with pdfplumber instead of fitz
-        """
-        try:
-            filtered_content = []
-            text_summary = ""
-            debug_logs = ""
-            current_section = "UNKNOWN"
-            
-            with pdfplumber.open(io.BytesIO(uploaded_file_bytes)) as pdf:
-                for page_num, page in enumerate(pdf.pages):
-                    text = page.extract_text()
-                    if not text:
-                        text = ""
-                    
-                    text_lower = text.lower()
-                    log = f"Page {page_num + 1}: "
-                    
-                    # Skip if no text content (image-only pages)
-                    if not text.strip():
-                        debug_logs += log + " Skipped (No text content)\n"
-                        continue
-                    
-                    # Skip excluded sections
-                    if any(section.lower() in text_lower for section in self.exclude_sections):
-                        debug_logs += log + "Skipped (Excluded section)\n"
-                        continue
-                    
-                    # Identify current section
-                    for header in self.section_headers:
-                        if header.lower() in text_lower:
-                            current_section = header
-                            break
-                    
-                    debug_logs += log + f"Included (Section: {current_section})\n"
-                    
-                    # Add section and page markers
-                    section_label = f"\n--- {current_section} ---"
-                    page_marker = f"\n--- Page {page_num + 1} ---"
-                    
-                    # Extract tables from this page as well
-                    page_content = text
-                    tables = page.extract_tables()
-                    for table in tables:
-                        if table:
-                            table_text = []
-                            for row in table:
-                                row_text = [str(cell) if cell else "" for cell in row]
-                                table_text.append(" | ".join(row_text))
-                            if table_text:
-                                page_content += "\n\nTABLE:\n" + "\n".join(table_text)
-                    
-                    text_summary += f"{section_label}{page_marker}\n{page_content.strip()}\n"
-                    filtered_content.append(page_content)
-            
-            # For compatibility, return text summary and None for output_stream
-            # since we're not creating a filtered PDF file anymore
-            return text_summary.strip(), None
-            
-        except Exception as e:
-            logger.error(f"Error in extract_final_filtered_pdf: {str(e)}")
+        doc = fitz.open(stream=uploaded_file_bytes, filetype="pdf")
+        filtered_doc = fitz.open()
+        text_summary = ""
+        debug_logs = ""
+        current_section = "UNKNOWN"
+ 
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            text = page.get_text("text").strip()
+            text_lower = text.lower()
+            log = f"Page {page_num + 1}: "
+ 
+            if self.is_image_only_page(page):
+                debug_logs += log + " Skipped (Image-only page)\n"
+                continue
+ 
+            if any(section.lower() in text_lower for section in self.exclude_sections):
+                debug_logs += log + "Skipped (Excluded section)\n"
+                continue
+ 
+            for header in self.section_headers:
+                if header.lower() in text_lower:
+                    current_section = header
+                    break
+ 
+            debug_logs += log + f"Included (Section: {current_section})\n"
+ 
+            section_label = f"\n--- {current_section} ---"
+            page_marker = f"\n--- Page {page_num + 1} ---"
+            filtered_doc.insert_pdf(doc, from_page=page_num, to_page=page_num)
+            text_summary += f"{section_label}{page_marker}\n{text.strip()}\n"
+ 
+        output_stream = io.BytesIO()
+        if len(filtered_doc) > 0:
+            filtered_doc.save(output_stream)
+            output_stream.seek(0)
+            return text_summary.strip(), output_stream
+        else:
             return "", None
 
     def is_header_line(self, line):
@@ -421,23 +367,11 @@ class DocumentComparer:
         display_doc1 = doc1_original if doc1_original is not None else doc1_cleaned
         display_doc2 = doc2_original if doc2_original is not None else doc2_cleaned
 
-        system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and do the following:
+        system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and display ONLY the meaningful and contextual differences between the same
 
-Step 1: Understand each section separately.
-
-There will be tabular data as well, understand those too
-
-Step 2: Identify all *content (contextual) differences* between them
-
-EXCLUDE:
-1. Names
-2. Identification Numbers
-3. PII information
-4. Serialization/ Numbering
-
-Step 3: Present a structured, **point-wise list** of the meaningful differences, e.g.:
-1. Date changed from 'X' in Document 1 to 'Y' in Document 2.
-2. The clause about <topic> is present in Document 2 but missing in Document 1.
+IGNORE:
+1. Different language or script differences
+2. Spacing/indentation/numbering/serialization differences
 
 Section Name: {section}
 
@@ -451,7 +385,6 @@ Filed Copy (cleaned for comparison):
 Customer Copy (cleaned for comparison):
 {doc2_cleaned}
 
-Respond only with the final response after understanding and following the above steps. If no meaningful content differences are found, clearly respond: "NO_CONTENT_DIFFERENCE".
 """
 
         try:
