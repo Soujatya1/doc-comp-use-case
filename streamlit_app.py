@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import fitz
 import io
-from langchain_openai import AzureChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
 from langchain.prompts import PromptTemplate
 import json
@@ -10,21 +10,20 @@ import re
 from typing import Dict, List, Tuple
 import logging
 from datetime import datetime
-import pdfplumber
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class DocumentComparer:
-    def __init__(self, azure_endpoint: str, api_key: str, api_version: str = "2024-02-01", 
-                 deployment_name: str = "gpt-4"):
+    def __init__(self, api_key: str, model_name: str = "gpt-4"):
         self.llm = AzureChatOpenAI(
             azure_endpoint=azure_endpoint,
-            api_key=api_key,
+            openai_api_key=api_key,
+            azure_deployment=azure_deployment,
             api_version=api_version,
-            deployment_name=deployment_name,
-            temperature=0.1,
-            max_tokens=4000
+            temperature=0.2,
+            top_p=0.2,
+            max_tokens = 4000
         )
 
         self.target_sections = [
@@ -119,34 +118,17 @@ class DocumentComparer:
         
         return cleaned_text
 
-    def extract_text_from_pdf(self, pdf_file) -> dict:
+    def extract_text_from_pdf(self, pdf_file) -> str:
         try:
             doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
-            content = {
-                'text': '',
-                'tables': []
-            }
-            
+            text = ""
             for page_num in range(len(doc)):
                 page = doc[page_num]
-                
-                # Extract regular text
-                content['text'] += page.get_text("text") + "\n"
-                
-                # Extract tables
-                tables = page.find_tables()
-                for table in tables:
-                    table_data = table.extract()
-                    content['tables'].append({
-                        'page': page_num + 1,
-                        'data': table_data
-                    })
-            
-            doc.close()
-            return content
+                text += page.get_text("text") + "\n"
+            return text
         except Exception as e:
-            logger.error(f"Error extracting content from PDF: {str(e)}")
-            return {'text': '', 'tables': []}
+            logger.error(f"Error extracting text from PDF: {str(e)}")
+            return ""
 
     def extract_sample_number_from_filename(self, filename: str) -> str:
         patterns = [
@@ -367,11 +349,27 @@ class DocumentComparer:
         display_doc1 = doc1_original if doc1_original is not None else doc1_cleaned
         display_doc2 = doc2_original if doc2_original is not None else doc2_cleaned
 
-        system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and display ONLY the meaningful and contextual differences between the same
+        system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and do the following:
 
-IGNORE:
-1. Different language or script differences
-2. Spacing/indentation/numbering/serialization differences
+Step 1: Understand each section separately.
+
+Step 2: Identify all *meaningful content differences* between them, focusing only on:
+- Contextual changes
+- Textual changes
+- Modifications, additions and deletions
+- Ignore numbering or serialization differences
+- DO NOT COMPARE THE PORTIONS WHICH HAVE PLACEHOLDERS IN THE FILED COPY
+IGNORE differences in formatting, punctuation, line breaks, numbering or case changes.
+
+EXCLUDE:
+1. Names
+2. Identification Numbers
+3. PII information
+
+Step 3: Present a structured, **point-wise list** of the meaningful differences, e.g.:
+1. Date changed from 'X' in Document 1 to 'Y' in Document 2.
+2. The clause about <topic> is present in Document 2 but missing in Document 1.
+3. Name changed from 'Mr. X' to 'Mr. Y'.
 
 Section Name: {section}
 
@@ -385,6 +383,7 @@ Filed Copy (cleaned for comparison):
 Customer Copy (cleaned for comparison):
 {doc2_cleaned}
 
+Respond only with the final response after understanding and following the above steps. If no meaningful content differences are found, clearly respond: "NO_CONTENT_DIFFERENCE".
 """
 
         try:
@@ -646,41 +645,27 @@ Customer Copy (cleaned for comparison):
 
 def main():
     st.set_page_config(
-        page_title="Enhanced Document Comparer with Azure OpenAI",
+        page_title="Enhanced Document Comparer with Rule-based Extraction",
         page_icon="📄",
         layout="wide"
     )
     
-    st.title("📄 Enhanced Document Comparer with Azure OpenAI")
-    st.markdown("Upload two PDF documents to compare specific sections using rule-based extraction and Azure OpenAI-powered comparison")
+    st.title("📄 Enhanced Document Comparer with Rule-based Extraction")
+    st.markdown("Upload two PDF documents to compare specific sections using rule-based extraction and AI-powered comparison")
     
     with st.sidebar:
-        st.header("🔧 Azure OpenAI Configuration")
-        
-        azure_endpoint = st.text_input(
-            "Azure OpenAI Endpoint",
-            placeholder="https://your-resource-name.openai.azure.com/",
-            help="Your Azure OpenAI resource endpoint URL"
-        )
+        st.header("🔧 OpenAI Configuration")
         
         api_key = st.text_input(
-            "Azure OpenAI API Key",
-            placeholder="Enter your Azure OpenAI API key",
+            "OpenAI API Key",
+            placeholder="Enter your OpenAI API key",
             type="password"
         )
-        
-        deployment_name = st.text_input(
-            "Deployment Name",
-            value="gpt-4",
-            placeholder="Enter your deployment name",
-            help="The name of your GPT model deployment in Azure"
-        )
-        
-        api_version = st.selectbox(
-            "API Version",
-            options=["2025-01-01-preview"],
-            index=0,
-            help="Azure OpenAI API version"
+
+        model_name = st.selectbox(
+            "Model",
+            options=["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"],
+            index=0
         )
         
         st.markdown("---")
@@ -693,7 +678,7 @@ def main():
         st.markdown("---")
         st.markdown("**Analysis Features:**")
         st.markdown("✅ Rule-based section extraction")
-        st.markdown("✅ Azure OpenAI-powered comparison")
+        st.markdown("✅ AI-powered content comparison")
         st.markdown("✅ Complete content display")
         st.markdown("✅ Structured Excel output")
     
@@ -723,8 +708,8 @@ def main():
     
     # Process documents
     if st.button("🔍 Analyze All Sections with Rule-based Extraction", type="primary"):
-        if not azure_endpoint or not api_key or not deployment_name:
-            st.error("❌ Please provide all Azure OpenAI configuration details")
+        if not api_key:
+            st.error("❌ Please provide OpenAI API key")
             return
         
         if not doc1_file or not doc2_file:
@@ -733,10 +718,8 @@ def main():
         
         try:
             comparer = DocumentComparer(
-                azure_endpoint=azure_endpoint,
                 api_key=api_key,
-                api_version=api_version,
-                deployment_name=deployment_name
+                model_name=model_name
             )
             
             with st.spinner("🔄 Processing documents..."):
