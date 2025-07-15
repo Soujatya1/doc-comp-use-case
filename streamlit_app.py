@@ -118,9 +118,9 @@ class DocumentComparer:
         return cleaned_text
 
     def extract_text_from_pdf(self, pdf_file):
-    """
-    Enhanced PDF extraction using pdfplumber to handle both text and tables
-    """
+        """
+        Enhanced PDF extraction using pdfplumber to handle both text and tables
+        """
         try:
             content = []
             all_tables = []  # Store all tables for debugging
