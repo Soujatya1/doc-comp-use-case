@@ -117,7 +117,7 @@ class DocumentComparer:
         
         return cleaned_text
 
-    def extract_content_from_pdf(self, pdf_file):
+    def extract_text_from_pdf(self, pdf_file):
         """
         Enhanced PDF extraction using pdfplumber to handle both text and tables
         """
