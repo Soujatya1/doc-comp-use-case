@@ -261,8 +261,8 @@ class DocumentComparer:
             doc1_content = doc1_sections.get(section, "NOT FOUND")
             doc2_content = doc2_sections.get(section, "NOT FOUND")
 
-            doc1_cleaned = self.clean_text_for_comparison(doc1_content)
-            doc2_cleaned = self.clean_text_for_comparison(doc2_content)
+            doc1_cleaned = self.extract_text_from_pdf(doc1_content)
+            doc2_cleaned = self.extract_text_from_pdf(doc2_content)
 
             total_content_size = len(doc1_cleaned) + len(doc2_cleaned)
         
