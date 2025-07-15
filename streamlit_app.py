@@ -97,7 +97,6 @@ class DocumentComparer:
         if not is_filed_copy:
             return content
             
-        # Replace common placeholder patterns with standardized placeholders
         placeholder_replacements = {
             r'<dd/mm/yyyy>': '[DATE_PLACEHOLDER]',
             r'<\w*[Dd]ate\w*>': '[DATE_PLACEHOLDER]',
@@ -107,7 +106,7 @@ class DocumentComparer:
             r'<\w*[Pp]hone\w*>': '[PHONE_PLACEHOLDER]',
             r'<\w*[Ee]mail\w*>': '[EMAIL_PLACEHOLDER]',
             r'<\w*[Aa]ddress\w*>': '[ADDRESS_PLACEHOLDER]',
-            r'<[^>]+>': '[GENERAL_PLACEHOLDER]',  # Catch-all for any remaining < >
+            r'<[^>]+>': '[GENERAL_PLACEHOLDER]',
         }
         
         processed_content = content
@@ -314,12 +313,7 @@ class DocumentComparer:
         return comparison_results
 
     def create_improved_system_prompt(self, section: str, doc1_cleaned: str, doc2_cleaned: str) -> str:
-        """
-        Creates an improved system prompt for document comparison with better instructions
-        and section-specific guidance.
-        """
         
-        # Section-specific focus areas
         section_guidance = {
             "FORWARDING LETTER": """
             Focus specifically on differences in:
@@ -418,7 +412,7 @@ class DocumentComparer:
     {specific_guidance}
     
     CRITICAL INSTRUCTION - PLACEHOLDER HANDLING:
-========================================
+
 **ABSOLUTE RULE: IGNORE ALL PLACEHOLDER CONTENT**
 
 The Filed Copy contains standardized placeholders that are replaced with actual values in the Customer Copy. These placeholders have been normalized to the following patterns:
@@ -433,11 +427,11 @@ The Filed Copy contains standardized placeholders that are replaced with actual 
 - [GENERAL_PLACEHOLDER] = Any other placeholder content
 
 **EXAMPLES OF WHAT TO COMPLETELY IGNORE:**
-❌ Filed Copy: "Policy Date: [DATE_PLACEHOLDER]" vs Customer Copy: "Policy Date: 15/01/2024"
-❌ Filed Copy: "Name: [NAME_PLACEHOLDER]" vs Customer Copy: "Name: John Smith"
-❌ Filed Copy: "Premium: [AMOUNT_PLACEHOLDER]" vs Customer Copy: "Premium: ₹50,000"
-❌ Filed Copy: "Contact: [CONTACT_PLACEHOLDER]" vs Customer Copy: "Contact: +91-9876543210"
-❌ Filed Copy: "Policy No: [NUMBER_PLACEHOLDER]" vs Customer Copy: "Policy No: POL123456"
+- Filed Copy: "Policy Date: [DATE_PLACEHOLDER]" vs Customer Copy: "Policy Date: 15/01/2024"
+- Filed Copy: "Name: [NAME_PLACEHOLDER]" vs Customer Copy: "Name: John Smith"
+- Filed Copy: "Premium: [AMOUNT_PLACEHOLDER]" vs Customer Copy: "Premium: ₹50,000"
+- Filed Copy: "Contact: [CONTACT_PLACEHOLDER]" vs Customer Copy: "Contact: +91-9876543210"
+- Filed Copy: "Policy No: [NUMBER_PLACEHOLDER]" vs Customer Copy: "Policy No: POL123456"
 
 **THESE ARE NOT MEANINGFUL DIFFERENCES - THEY ARE TEMPLATE PLACEHOLDERS BEING FILLED WITH ACTUAL VALUES**
 
@@ -445,22 +439,22 @@ COMPARISON INSTRUCTIONS:
 =======================
 
 1. WHAT TO IDENTIFY AS MEANINGFUL DIFFERENCES:
-   ✓ Changes in policy terms, conditions, or procedures
-   ✓ Addition or removal of clauses, requirements, or benefits
-   ✓ Modifications in amounts, percentages, timeframes, or durations
-   ✓ Changes in contact information, addresses, or service procedures
-   ✓ Alterations in regulatory references or compliance requirements
-   ✓ Different document requirements or submission procedures
-   ✓ Changes in legal language that affect policy interpretation
+   - Changes in policy terms, conditions, or procedures
+   - Addition or removal of clauses, requirements, or benefits
+   - Modifications in amounts, percentages, timeframes, or durations
+   - Changes in contact information, addresses, or service procedures
+   - Alterations in regulatory references or compliance requirements
+   - Different document requirements or submission procedures
+   - Changes in legal language that affect policy interpretation
 
 2. WHAT TO IGNORE (NOT meaningful differences):
-   ✗ Any content involving placeholders (see examples above)
-   ✗ Personal information differences (names, addresses, phone numbers)
-   ✗ Policy-specific identifiers (policy numbers, application numbers)
-   ✗ Personal identification numbers (Aadhaar, PAN, etc.)
-   ✗ Personalized dates (policy issue dates, birth dates)
-   ✗ Formatting differences (spacing, font, alignment)
-   ✗ Minor grammatical or spelling corrections that don't change meaning
+   - Any content involving placeholders (see examples above)
+   - Personal information differences (names, addresses, phone numbers)
+   - Policy-specific identifiers (policy numbers, application numbers)
+   - Personal identification numbers (Aadhaar, PAN, etc.)
+   - Personalized dates (policy issue dates, birth dates)
+   - Formatting differences (spacing, font, alignment)
+   - Minor grammatical or spelling corrections that don't change meaning
 
 3. OUTPUT FORMAT:
    If you find meaningful differences, present them as a clear, numbered list:
@@ -754,13 +748,13 @@ COMPARISON INSTRUCTIONS:
 
 def main():
     st.set_page_config(
-        page_title="Enhanced Document Comparer with Azure OpenAI",
+        page_title="Enhanced Document Comparer",
         page_icon="📄",
         layout="wide"
     )
     
-    st.title("📄 Enhanced Document Comparer with Azure OpenAI")
-    st.markdown("Upload two PDF documents to compare specific sections using rule-based extraction and Azure OpenAI-powered comparison")
+    st.title("📄 Enhanced Document Comparer")
+    st.markdown("Upload two PDF documents to compare specific sections using rule-based extraction and AI-powered comparison")
     
     with st.sidebar:
         st.header("🔧 Azure OpenAI Configuration")
@@ -832,11 +826,11 @@ def main():
     # Process documents
     if st.button("🔍 Analyze All Sections with Rule-based Extraction", type="primary"):
         if not azure_endpoint or not api_key or not deployment_name:
-            st.error("❌ Please provide all Azure OpenAI configuration details")
+            st.error("- Please provide all Azure OpenAI configuration details")
             return
         
         if not doc1_file or not doc2_file:
-            st.error("❌ Please upload both PDF documents")
+            st.error("- Please upload both PDF documents")
             return
         
         try:
@@ -853,7 +847,7 @@ def main():
                 doc2_text = comparer.extract_text_from_pdf(doc2_file)
                 
                 if not doc1_text or not doc2_text:
-                    st.error("❌ Failed to extract text from one or both documents")
+                    st.error("- Failed to extract text from one or both documents")
                     return
                 
                 sample_number = comparer.extract_sample_number_from_filename(doc2_file.name)
@@ -917,7 +911,7 @@ def main():
             )
             
         except Exception as e:
-            st.error(f"❌ An error occurred: {str(e)}")
+            st.error(f"- An error occurred: {str(e)}")
             logger.error(f"Application error: {str(e)}")
 
 if __name__ == "__main__":
