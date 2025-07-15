@@ -315,162 +315,162 @@ class DocumentComparer:
         return comparison_results
 
     def create_improved_system_prompt(self, section: str, doc1_cleaned: str, doc2_cleaned: str) -> str:
-    """
-    Creates an improved system prompt for document comparison with better instructions
-    and section-specific guidance.
-    """
-    
-    # Section-specific focus areas
-    section_guidance = {
-        "FORWARDING LETTER": """
-        Focus specifically on differences in:
-        - Required document lists (additions, removals, or changes)
-        - Free-look period duration and conditions
-        - Cancellation procedures and timelines
-        - Regulatory references (Section 45 of Insurance Act, IRDAI regulations)
-        - Contact information for policy servicing
-        - Instructions for policy issuance or modifications
-        - Refund conditions and procedures
-        """,
-        "SCHEDULE": """
-        Focus specifically on differences in:
-        - Policy terms and durations
-        - Premium amounts and payment frequencies
-        - Coverage limits and benefit amounts
-        - Policy effective dates and renewal terms
-        - Rider information and additional benefits
-        - Sum assured or coverage amounts
-        """,
-        "PREAMBLE": """
-        Focus specifically on differences in:
-        - Legal declarations and statements
-        - Regulatory compliance language
-        - Policy introduction and purpose
-        - Legal framework references
-        - Contractual terms and conditions
-        """,
-        "DEFINITIONS & ABBREVIATIONS": """
-        Focus specifically on differences in:
-        - Definition changes or additions
-        - New abbreviations or modifications
-        - Terminology clarifications
-        - Legal or technical term explanations
-        """,
-        "PART C": """
-        Focus specifically on differences in:
-        - Benefit descriptions and conditions
-        - Eligibility criteria
-        - Exclusions and limitations
-        - Claim procedures
-        """,
-        "PART D": """
-        Focus specifically on differences in:
-        - Premium payment terms
-        - Grace period provisions
-        - Lapse and revival conditions
-        - Premium calculation methods
-        """,
-        "PART F": """
-        Focus specifically on differences in:
-        - Claim settlement procedures
-        - Required documentation for claims
-        - Claim processing timelines
-        - Dispute resolution mechanisms
-        """,
-        "PART G": """
-        Focus specifically on differences in:
-        - General conditions and provisions
-        - Policy administration procedures
-        - Regulatory compliance requirements
-        - Miscellaneous terms and conditions
-        """,
-        "ANNEXURE AA": """
-        Focus specifically on differences in:
-        - Specific annexure content
-        - Additional terms and conditions
-        - Supplementary information
-        """,
-        "ANNEXURE BB": """
-        Focus specifically on differences in:
-        - Specific annexure content
-        - Additional terms and conditions
-        - Supplementary information
-        """,
-        "ANNEXURE CC": """
-        Focus specifically on differences in:
-        - Specific annexure content
-        - Additional terms and conditions
-        - Supplementary information
         """
-    }
+        Creates an improved system prompt for document comparison with better instructions
+        and section-specific guidance.
+        """
+        
+        # Section-specific focus areas
+        section_guidance = {
+            "FORWARDING LETTER": """
+            Focus specifically on differences in:
+            - Required document lists (additions, removals, or changes)
+            - Free-look period duration and conditions
+            - Cancellation procedures and timelines
+            - Regulatory references (Section 45 of Insurance Act, IRDAI regulations)
+            - Contact information for policy servicing
+            - Instructions for policy issuance or modifications
+            - Refund conditions and procedures
+            """,
+            "SCHEDULE": """
+            Focus specifically on differences in:
+            - Policy terms and durations
+            - Premium amounts and payment frequencies
+            - Coverage limits and benefit amounts
+            - Policy effective dates and renewal terms
+            - Rider information and additional benefits
+            - Sum assured or coverage amounts
+            """,
+            "PREAMBLE": """
+            Focus specifically on differences in:
+            - Legal declarations and statements
+            - Regulatory compliance language
+            - Policy introduction and purpose
+            - Legal framework references
+            - Contractual terms and conditions
+            """,
+            "DEFINITIONS & ABBREVIATIONS": """
+            Focus specifically on differences in:
+            - Definition changes or additions
+            - New abbreviations or modifications
+            - Terminology clarifications
+            - Legal or technical term explanations
+            """,
+            "PART C": """
+            Focus specifically on differences in:
+            - Benefit descriptions and conditions
+            - Eligibility criteria
+            - Exclusions and limitations
+            - Claim procedures
+            """,
+            "PART D": """
+            Focus specifically on differences in:
+            - Premium payment terms
+            - Grace period provisions
+            - Lapse and revival conditions
+            - Premium calculation methods
+            """,
+            "PART F": """
+            Focus specifically on differences in:
+            - Claim settlement procedures
+            - Required documentation for claims
+            - Claim processing timelines
+            - Dispute resolution mechanisms
+            """,
+            "PART G": """
+            Focus specifically on differences in:
+            - General conditions and provisions
+            - Policy administration procedures
+            - Regulatory compliance requirements
+            - Miscellaneous terms and conditions
+            """,
+            "ANNEXURE AA": """
+            Focus specifically on differences in:
+            - Specific annexure content
+            - Additional terms and conditions
+            - Supplementary information
+            """,
+            "ANNEXURE BB": """
+            Focus specifically on differences in:
+            - Specific annexure content
+            - Additional terms and conditions
+            - Supplementary information
+            """,
+            "ANNEXURE CC": """
+            Focus specifically on differences in:
+            - Specific annexure content
+            - Additional terms and conditions
+            - Supplementary information
+            """
+        }
+        
+        specific_guidance = section_guidance.get(section, """
+        Focus on all meaningful content differences including:
+        - Changes in terms, conditions, or procedures
+        - Addition or removal of clauses
+        - Modifications in amounts, percentages, or timeframes
+        """)
+        
+        return f"""You are an expert document comparison analyst specializing in insurance policy documents. Your task is to perform a precise comparison of two versions of the same document section.
     
-    specific_guidance = section_guidance.get(section, """
-    Focus on all meaningful content differences including:
-    - Changes in terms, conditions, or procedures
-    - Addition or removal of clauses
-    - Modifications in amounts, percentages, or timeframes
-    """)
+    SECTION BEING ANALYZED: {section}
     
-    return f"""You are an expert document comparison analyst specializing in insurance policy documents. Your task is to perform a precise comparison of two versions of the same document section.
-
-SECTION BEING ANALYZED: {section}
-
-SPECIFIC ANALYSIS FOCUS:
-{specific_guidance}
-
-COMPARISON INSTRUCTIONS:
-
-1. WHAT TO IDENTIFY AS MEANINGFUL DIFFERENCES:
-   ✓ Changes in policy terms, conditions, or procedures
-   ✓ Addition or removal of clauses, requirements, or benefits
-   ✓ Modifications in amounts, percentages, timeframes, or durations
-   ✓ Changes in contact information, addresses, or service procedures
-   ✓ Alterations in regulatory references or compliance requirements
-   ✓ Different document requirements or submission procedures
-   ✓ Changes in legal language that affect policy interpretation
-
-2. WHAT TO IGNORE (NOT meaningful differences):
-   ✗ Personal names (policyholder names, beneficiary names)
-   ✗ Policy numbers, application numbers, certificate numbers
-   ✗ Personal identification numbers (Aadhaar, PAN, etc.)
-   ✗ Personal addresses, phone numbers, email addresses
-   ✗ Dates that are clearly personalized (policy issue dates, birth dates)
-   ✗ Formatting differences (spacing, font, alignment)
-   ✗ Placeholder text like <Name>, <Address>, <Number>
-   ✗ Minor grammatical or spelling corrections that don't change meaning
-
-3. OUTPUT FORMAT:
-   If you find meaningful differences, present them as a clear, numbered list:
-   
-   1. [Specific description of difference]
-   2. [Another difference if found]
-   3. [Continue numbering for each difference]
-
-   If NO meaningful differences exist, respond with exactly:
-   "NO_MEANINGFUL_DIFFERENCES"
-
-4. EXAMPLES OF GOOD DIFFERENCE DESCRIPTIONS:
-   ✓ "Free-look period changed from 15 days in Filed Copy to 30 days in Customer Copy"
-   ✓ "Additional document requirement added in Customer Copy: PAN card photocopy"
-   ✓ "Contact email for policy servicing changed from service@oldcompany.com to help@newcompany.com"
-   ✓ "Section 45 reference removed from Customer Copy"
-   ✓ "Premium payment grace period extended from 30 days to 45 days in Customer Copy"
-
-5. EXAMPLES OF DIFFERENCES TO IGNORE:
-   ✗ "Policyholder name changed from John Smith to Jane Doe"
-   ✗ "Policy number changed from POL123456 to POL789012"
-   ✗ "Different formatting in address layout"
-
-DOCUMENTS TO COMPARE:
-
-FILED COPY CONTENT:
-{doc1_cleaned}
-
-CUSTOMER COPY CONTENT:
-{doc2_cleaned}
-
-ANALYSIS INSTRUCTION:
-Analyze both documents carefully and identify only meaningful content differences as defined above. Be precise and specific in your descriptions. If no meaningful differences exist, respond with "NO_MEANINGFUL_DIFFERENCES"."""
+    SPECIFIC ANALYSIS FOCUS:
+    {specific_guidance}
+    
+    COMPARISON INSTRUCTIONS:
+    
+    1. WHAT TO IDENTIFY AS MEANINGFUL DIFFERENCES:
+       ✓ Changes in policy terms, conditions, or procedures
+       ✓ Addition or removal of clauses, requirements, or benefits
+       ✓ Modifications in amounts, percentages, timeframes, or durations
+       ✓ Changes in contact information, addresses, or service procedures
+       ✓ Alterations in regulatory references or compliance requirements
+       ✓ Different document requirements or submission procedures
+       ✓ Changes in legal language that affect policy interpretation
+    
+    2. WHAT TO IGNORE (NOT meaningful differences):
+       ✗ Personal names (policyholder names, beneficiary names)
+       ✗ Policy numbers, application numbers, certificate numbers
+       ✗ Personal identification numbers (Aadhaar, PAN, etc.)
+       ✗ Personal addresses, phone numbers, email addresses
+       ✗ Dates that are clearly personalized (policy issue dates, birth dates)
+       ✗ Formatting differences (spacing, font, alignment)
+       ✗ Placeholder text like <Name>, <Address>, <Number>
+       ✗ Minor grammatical or spelling corrections that don't change meaning
+    
+    3. OUTPUT FORMAT:
+       If you find meaningful differences, present them as a clear, numbered list:
+       
+       1. [Specific description of difference]
+       2. [Another difference if found]
+       3. [Continue numbering for each difference]
+    
+       If NO meaningful differences exist, respond with exactly:
+       "NO_MEANINGFUL_DIFFERENCES"
+    
+    4. EXAMPLES OF GOOD DIFFERENCE DESCRIPTIONS:
+       ✓ "Free-look period changed from 15 days in Filed Copy to 30 days in Customer Copy"
+       ✓ "Additional document requirement added in Customer Copy: PAN card photocopy"
+       ✓ "Contact email for policy servicing changed from service@oldcompany.com to help@newcompany.com"
+       ✓ "Section 45 reference removed from Customer Copy"
+       ✓ "Premium payment grace period extended from 30 days to 45 days in Customer Copy"
+    
+    5. EXAMPLES OF DIFFERENCES TO IGNORE:
+       ✗ "Policyholder name changed from John Smith to Jane Doe"
+       ✗ "Policy number changed from POL123456 to POL789012"
+       ✗ "Different formatting in address layout"
+    
+    DOCUMENTS TO COMPARE:
+    
+    FILED COPY CONTENT:
+    {doc1_cleaned}
+    
+    CUSTOMER COPY CONTENT:
+    {doc2_cleaned}
+    
+    ANALYSIS INSTRUCTION:
+    Analyze both documents carefully and identify only meaningful content differences as defined above. Be precise and specific in your descriptions. If no meaningful differences exist, respond with "NO_MEANINGFUL_DIFFERENCES"."""
     
     def _compare_section_content(self, doc1_cleaned: str, doc2_cleaned: str, section: str, 
                            sample_number: str, doc1_original: str = None, 
