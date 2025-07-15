@@ -313,15 +313,15 @@ class DocumentComparer:
             comparison_results.append(comparison_result)
 
         return comparison_results
-    
-    def _compare_section_content(self, doc1_cleaned: str, doc2_cleaned: str, section: str, 
-                           sample_number: str, doc1_original: str = None, 
-                           doc2_original: str = None) -> Dict:
-    
-        display_doc1 = doc1_original if doc1_original is not None else doc1_cleaned
-        display_doc2 = doc2_original if doc2_original is not None else doc2_cleaned
 
-        system_prompt = section_guidance = {
+    def create_improved_system_prompt(self, section: str, doc1_cleaned: str, doc2_cleaned: str) -> str:
+    """
+    Creates an improved system prompt for document comparison with better instructions
+    and section-specific guidance.
+    """
+    
+    # Section-specific focus areas
+    section_guidance = {
         "FORWARDING LETTER": """
         Focus specifically on differences in:
         - Required document lists (additions, removals, or changes)
@@ -471,7 +471,15 @@ CUSTOMER COPY CONTENT:
 
 ANALYSIS INSTRUCTION:
 Analyze both documents carefully and identify only meaningful content differences as defined above. Be precise and specific in your descriptions. If no meaningful differences exist, respond with "NO_MEANINGFUL_DIFFERENCES"."""
+    
+    def _compare_section_content(self, doc1_cleaned: str, doc2_cleaned: str, section: str, 
+                           sample_number: str, doc1_original: str = None, 
+                           doc2_original: str = None) -> Dict:
+    
+        display_doc1 = doc1_original if doc1_original is not None else doc1_cleaned
+        display_doc2 = doc2_original if doc2_original is not None else doc2_cleaned
 
+        system_prompt = self.create_improved_system_prompt(section, doc1_cleaned, doc2_cleaned)
         try:
             messages = [
                 SystemMessage(content=system_prompt),
