@@ -164,44 +164,65 @@ class DocumentComparer:
         return not text and (page.get_images(full=True) or page.get_drawings())
 
     def extract_final_filtered_pdf(self, uploaded_file_bytes, is_customer_copy=False):
-        doc = fitz.open(stream=uploaded_file_bytes, filetype="pdf")
-        filtered_doc = fitz.open()
-        text_summary = ""
-        debug_logs = ""
-        current_section = "UNKNOWN"
- 
-        for page_num in range(len(doc)):
-            page = doc[page_num]
-            text = page.get_text("text").strip()
-            text_lower = text.lower()
-            log = f"Page {page_num + 1}: "
- 
-            if self.is_image_only_page(page):
-                debug_logs += log + " Skipped (Image-only page)\n"
-                continue
- 
-            if any(section.lower() in text_lower for section in self.exclude_sections):
-                debug_logs += log + "Skipped (Excluded section)\n"
-                continue
- 
-            for header in self.section_headers:
-                if header.lower() in text_lower:
-                    current_section = header
-                    break
- 
-            debug_logs += log + f"Included (Section: {current_section})\n"
- 
-            section_label = f"\n--- {current_section} ---"
-            page_marker = f"\n--- Page {page_num + 1} ---"
-            filtered_doc.insert_pdf(doc, from_page=page_num, to_page=page_num)
-            text_summary += f"{section_label}{page_marker}\n{text.strip()}\n"
- 
-        output_stream = io.BytesIO()
-        if len(filtered_doc) > 0:
-            filtered_doc.save(output_stream)
-            output_stream.seek(0)
-            return text_summary.strip(), output_stream
-        else:
+
+        try:
+            filtered_content = []
+            text_summary = ""
+            debug_logs = ""
+            current_section = "UNKNOWN"
+            
+            with pdfplumber.open(io.BytesIO(uploaded_file_bytes)) as pdf:
+                for page_num, page in enumerate(pdf.pages):
+                    text = page.extract_text()
+                    if not text:
+                        text = ""
+                    
+                    text_lower = text.lower()
+                    log = f"Page {page_num + 1}: "
+                    
+                    # Skip if no text content (image-only pages)
+                    if not text.strip():
+                        debug_logs += log + " Skipped (No text content)\n"
+                        continue
+                    
+                    # Skip excluded sections
+                    if any(section.lower() in text_lower for section in self.exclude_sections):
+                        debug_logs += log + "Skipped (Excluded section)\n"
+                        continue
+                    
+                    # Identify current section
+                    for header in self.section_headers:
+                        if header.lower() in text_lower:
+                            current_section = header
+                            break
+                    
+                    debug_logs += log + f"Included (Section: {current_section})\n"
+                    
+                    # Add section and page markers
+                    section_label = f"\n--- {current_section} ---"
+                    page_marker = f"\n--- Page {page_num + 1} ---"
+                    
+                    # Extract tables from this page as well
+                    page_content = text
+                    tables = page.extract_tables()
+                    for table in tables:
+                        if table:
+                            table_text = []
+                            for row in table:
+                                row_text = [str(cell) if cell else "" for cell in row]
+                                table_text.append(" | ".join(row_text))
+                            if table_text:
+                                page_content += "\n\nTABLE:\n" + "\n".join(table_text)
+                    
+                    text_summary += f"{section_label}{page_marker}\n{page_content.strip()}\n"
+                    filtered_content.append(page_content)
+            
+            # For compatibility, return text summary and None for output_stream
+            # since we're not creating a filtered PDF file anymore
+            return text_summary.strip(), None
+            
+        except Exception as e:
+            logger.error(f"Error in extract_final_filtered_pdf: {str(e)}")
             return "", None
 
     def is_header_line(self, line):
