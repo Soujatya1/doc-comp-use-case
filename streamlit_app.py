@@ -438,6 +438,8 @@ class DocumentComparer:
        ✗ Formatting differences (spacing, font, alignment)
        ✗ Placeholder text like <Name>, <Address>, <Number>
        ✗ Minor grammatical or spelling corrections that don't change meaning
+
+       IMPORTANT: WHEN YOU FIND THAT THE DIFFERENTIATING FACTOR IS WITH A PLACEHOLDER, THEN DO NOT JUST SHOW IT AS A PLACEHOLDER, RATHER ACTUALLY STATE WHAT THE CONTEXT MEANS FOR THE DIFFERENCE
     
     3. OUTPUT FORMAT:
        If you find meaningful differences, present them as a clear, numbered list:
