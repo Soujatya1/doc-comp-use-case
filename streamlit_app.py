@@ -439,8 +439,16 @@ class DocumentComparer:
        ✗ Numbering/serialization
     
     3. **CRITICAL: PLACEHOLDER HANDLING**
-       ✗ **IGNORE content enclosed in angle brackets < > in the Filed Copy** - these are placeholders
-       ✗ **DO NOT treat placeholder vs actual content as meaningful differences**
+       The Filed Copy contains standardized placeholders that are replaced with actual values in the Customer Copy. These placeholders have been normalized to the following patterns:
+
+    - [DATE_PLACEHOLDER] = Any date-related placeholders (birth dates, policy dates, etc.)
+    - [NAME_PLACEHOLDER] = Any name-related placeholders (policyholder, nominee, etc.)
+    - [NUMBER_PLACEHOLDER] = Any number-related placeholders (policy numbers, application numbers, etc.)
+    - [AMOUNT_PLACEHOLDER] = Any amount-related placeholders (premiums, coverage amounts, etc.)
+    - [CONTACT_PLACEHOLDER] = Any contact-related placeholders (phone, email, address, etc.)
+    - [IDENTITY_PLACEHOLDER] = Any identity-related placeholders (Aadhaar, PAN, passport, etc.)
+    - [LOCATION_PLACEHOLDER] = Any location-related placeholders (city, state, PIN, etc.)
+    - [GENERAL_PLACEHOLDER] = Any other placeholder content
        
        Examples of what to IGNORE:
        - Filed Copy: "Policy Date: <dd/mm/yyyy>" vs Customer Copy: "Policy Date: 15/01/2024"
