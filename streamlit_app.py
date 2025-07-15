@@ -436,10 +436,7 @@ class DocumentComparer:
        ✗ Personal addresses, phone numbers, email addresses
        ✗ Dates that are clearly personalized (policy issue dates, birth dates)
        ✗ Formatting differences (spacing, font, alignment)
-       ✗ Placeholder text like <Name>, <Address>, <Number>
        ✗ Minor grammatical or spelling corrections that don't change meaning
-
-       IMPORTANT: DO NOT BLUNTLY STATE THE DIFFERENCE IS FOR A [PLACEHOLDER], RATHER UNDERSTAND THE CONTEXT AND MENTION THE SAME IN THE OUTPUT
     
     3. OUTPUT FORMAT:
        If you find meaningful differences, present them as a clear, numbered list:
@@ -462,6 +459,9 @@ class DocumentComparer:
        ✗ "Policyholder name changed from John Smith to Jane Doe"
        ✗ "Policy number changed from POL123456 to POL789012"
        ✗ "Different formatting in address layout"
+
+    6. PLACEHOLDER INSTRUCTIONS:
+    - When the difference output contains [PLACEHOLDER] or placeholder, replace the same with the context logic as to what the difference actually is for
     
     DOCUMENTS TO COMPARE:
     
