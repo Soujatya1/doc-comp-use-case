@@ -136,10 +136,12 @@ class DocumentComparer:
                             table_text = []
                             for row in table:
                                 row_text = [str(cell) if cell else "" for cell in row]
-                                table_text.append(" | ".join(row_text))
+                                table_text.append("| " + " | ".join(row_text) + " |")
                             if table_text:
-                                content.append("TABLE:")
-                                content.append("\n".join(table_text))
+                                content.append("\n\nTABLE (Markdown format):")
+                                content.append("| " + " | ".join(["Column " + str(i+1) for i in range(len(table[0]))]) + " |")
+                                content.append("|" + "---|" * len(table[0]) + "")
+                                content.extend(table_text)
             
             return "\n".join(content)
         except Exception as e:
@@ -395,6 +397,8 @@ class DocumentComparer:
         system_prompt = f"""You are a document comparison expert. Your goal is to analyze the following two versions of the same section and do the following:
 
 Step 1: Understand each section separately.
+
+There will be tabular data as well, understand those too
 
 Step 2: Identify all *content (contextual) differences* between them
 
