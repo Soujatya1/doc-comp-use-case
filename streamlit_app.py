@@ -62,21 +62,6 @@ class DocumentComparer:
         self.max_input_chars = 12000
         self.chunk_size = 8000
 
-    def clean_text_for_comparison(self, text: str) -> str:
-
-        if not text or text == "NOT FOUND":
-            return text
-        
-        cleaned_text = text
-        
-        pattern = r'<(?=.*[a-zA-Z0-9])[^<>]*>'
-        cleaned_text = re.sub(pattern, '', cleaned_text)
-        
-        cleaned_text = re.sub(r'\s+', ' ', cleaned_text)
-        cleaned_text = re.sub(r'\n\s*\n', '\n\n', cleaned_text)
-        
-        return cleaned_text.strip()
-
     def extract_text_from_pdf(self, pdf_file) -> str:
         try:
             doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
@@ -276,8 +261,11 @@ class DocumentComparer:
             doc1_content = doc1_sections.get(section, "NOT FOUND")
             doc2_content = doc2_sections.get(section, "NOT FOUND")
 
-            doc1_cleaned = self.clean_text_for_comparison(doc1_content)
-            doc2_cleaned = self.clean_text_for_comparison(doc2_content)
+            #doc1_cleaned = self.clean_text_for_comparison(doc1_content)
+            #doc2_cleaned = self.clean_text_for_comparison(doc2_content)
+
+            doc1_cleaned = doc1_content
+            doc2_cleaned = doc2_content
 
             total_content_size = len(doc1_cleaned) + len(doc2_cleaned)
         
