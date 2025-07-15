@@ -118,16 +118,31 @@ class DocumentComparer:
         
         return cleaned_text
 
-    def extract_text_from_pdf(self, pdf_file) -> str:
+    def extract_text_from_pdf(self, pdf_file):
+
         try:
-            doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
-            text = ""
-            for page_num in range(len(doc)):
-                page = doc[page_num]
-                text += page.get_text("text") + "\n"
-            return text
+            content = []
+            with pdfplumber.open(pdf_file) as pdf:
+                for page in pdf.pages:
+                    # Extract regular text
+                    if page.extract_text():
+                        content.append(page.extract_text())
+                    
+                    # Extract tables
+                    tables = page.extract_tables()
+                    for table in tables:
+                        if table:
+                            table_text = []
+                            for row in table:
+                                row_text = [str(cell) if cell else "" for cell in row]
+                                table_text.append(" | ".join(row_text))
+                            if table_text:
+                                content.append("TABLE:")
+                                content.append("\n".join(table_text))
+            
+            return "\n".join(content)
         except Exception as e:
-            logger.error(f"Error extracting text from PDF: {str(e)}")
+            logger.error(f"Error extracting content from PDF: {str(e)}")
             return ""
 
     def extract_sample_number_from_filename(self, filename: str) -> str:
