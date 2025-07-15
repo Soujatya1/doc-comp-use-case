@@ -417,78 +417,60 @@ class DocumentComparer:
     SPECIFIC ANALYSIS FOCUS:
     {specific_guidance}
     
-    COMPARISON INSTRUCTIONS:
-    
-    1. WHAT TO IDENTIFY AS MEANINGFUL DIFFERENCES:
-       ✓ Changes in policy terms, conditions, or procedures
-       ✓ Addition or removal of clauses, requirements, or benefits
-       ✓ Modifications in amounts, percentages, timeframes, or durations
-       ✓ Changes in contact information, addresses, or service procedures
-       ✓ Alterations in regulatory references or compliance requirements
-       ✓ Different document requirements or submission procedures
-       ✓ Changes in legal language that affect policy interpretation
-    
-    2. WHAT TO IGNORE (NOT meaningful differences):
-       ✗ Personal names (policyholder names, beneficiary names)
-       ✗ Policy numbers, application numbers, certificate numbers
-       ✗ Personal identification numbers (Aadhaar, PAN, etc.)
-       ✗ Personal addresses, phone numbers, email addresses
-       ✗ Dates that are clearly personalized (policy issue dates, birth dates)
-       ✗ Formatting differences (spacing, font, alignment)
-       ✗ Minor grammatical or spelling corrections that don't change meaning
-       ✗ Numbering/serialization
-    
-    3. **CRITICAL: PLACEHOLDER HANDLING**
-       The Filed Copy contains standardized placeholders that are replaced with actual values in the Customer Copy. These placeholders have been normalized to the following patterns:
+    CRITICAL INSTRUCTION - PLACEHOLDER HANDLING:
+========================================
+**ABSOLUTE RULE: IGNORE ALL PLACEHOLDER CONTENT**
 
-    - [DATE_PLACEHOLDER] = Any date-related placeholders (birth dates, policy dates, etc.)
-    - [NAME_PLACEHOLDER] = Any name-related placeholders (policyholder, nominee, etc.)
-    - [NUMBER_PLACEHOLDER] = Any number-related placeholders (policy numbers, application numbers, etc.)
-    - [AMOUNT_PLACEHOLDER] = Any amount-related placeholders (premiums, coverage amounts, etc.)
-    - [CONTACT_PLACEHOLDER] = Any contact-related placeholders (phone, email, address, etc.)
-    - [IDENTITY_PLACEHOLDER] = Any identity-related placeholders (Aadhaar, PAN, passport, etc.)
-    - [LOCATION_PLACEHOLDER] = Any location-related placeholders (city, state, PIN, etc.)
-    - [GENERAL_PLACEHOLDER] = Any other placeholder content
-       
-       Examples of what to IGNORE:
-       - Filed Copy: "Policy Date: <dd/mm/yyyy>" vs Customer Copy: "Policy Date: 15/01/2024"
-       - Filed Copy: "Name: <Policyholder Name>" vs Customer Copy: "Name: John Smith"
-       - Filed Copy: "Amount: <Premium Amount>" vs Customer Copy: "Amount: ₹50,000"
-       - Filed Copy: "Contact: <Phone Number>" vs Customer Copy: "Contact: +91-9876543210"
-       
-       **These are NOT meaningful differences - they represent template placeholders being filled with actual values.**
-    
-    4. OUTPUT FORMAT:
-       If you find meaningful differences, present them as a clear, numbered list:
-       
-       1. [Specific description of difference]
-       2. [Another difference if found]
-       3. [Continue numbering for each difference]
-    
-       If NO meaningful differences exist, respond with exactly:
-       "NO_MEANINGFUL_DIFFERENCES"
-    
-    5. EXAMPLES OF GOOD DIFFERENCE DESCRIPTIONS:
-       ✓ "Free-look period changed from 15 days in Filed Copy to 30 days in Customer Copy"
-       ✓ "Additional document requirement added in Customer Copy: PAN card photocopy"
-       ✓ "Contact email for policy servicing changed from service@oldcompany.com to help@newcompany.com"
-       ✓ "Section 45 reference removed from Customer Copy"
-       ✓ "Premium payment grace period extended from 30 days to 45 days in Customer Copy"
-    
-    6. EXAMPLES OF DIFFERENCES TO IGNORE:
-       ✗ "Policyholder name changed from John Smith to Jane Doe"
-       ✗ "Policy number changed from POL123456 to POL789012"
-       ✗ "Different formatting in address layout"
-       ✗ "Filed Copy has <dd/mm/yyyy> while Customer Copy has 15/01/2024" (This is placeholder vs actual value)
-       ✗ "Filed Copy contains <Policy Number> whereas Customer Copy contains POL123456"
-    
-    7. PLACEHOLDER PATTERN RECOGNITION:
-       Look for these common placeholder patterns in Filed Copy and ignore differences with their actual values:
-       - Date patterns: <dd/mm/yyyy>, <Date>, <Policy Date>
-       - Name patterns: <Name>, <Policyholder Name>, <Nominee Name>
-       - Number patterns: <Policy Number>, <Application Number>, <Amount>
-       - Contact patterns: <Phone>, <Email>, <Address>
-       - Any content within angle brackets < >
+The Filed Copy contains standardized placeholders that are replaced with actual values in the Customer Copy. These placeholders have been normalized to the following patterns:
+
+- [DATE_PLACEHOLDER] = Any date-related placeholders (birth dates, policy dates, etc.)
+- [NAME_PLACEHOLDER] = Any name-related placeholders (policyholder, nominee, etc.)
+- [NUMBER_PLACEHOLDER] = Any number-related placeholders (policy numbers, application numbers, etc.)
+- [AMOUNT_PLACEHOLDER] = Any amount-related placeholders (premiums, coverage amounts, etc.)
+- [CONTACT_PLACEHOLDER] = Any contact-related placeholders (phone, email, address, etc.)
+- [IDENTITY_PLACEHOLDER] = Any identity-related placeholders (Aadhaar, PAN, passport, etc.)
+- [LOCATION_PLACEHOLDER] = Any location-related placeholders (city, state, PIN, etc.)
+- [GENERAL_PLACEHOLDER] = Any other placeholder content
+
+**EXAMPLES OF WHAT TO COMPLETELY IGNORE:**
+❌ Filed Copy: "Policy Date: [DATE_PLACEHOLDER]" vs Customer Copy: "Policy Date: 15/01/2024"
+❌ Filed Copy: "Name: [NAME_PLACEHOLDER]" vs Customer Copy: "Name: John Smith"
+❌ Filed Copy: "Premium: [AMOUNT_PLACEHOLDER]" vs Customer Copy: "Premium: ₹50,000"
+❌ Filed Copy: "Contact: [CONTACT_PLACEHOLDER]" vs Customer Copy: "Contact: +91-9876543210"
+❌ Filed Copy: "Policy No: [NUMBER_PLACEHOLDER]" vs Customer Copy: "Policy No: POL123456"
+
+**THESE ARE NOT MEANINGFUL DIFFERENCES - THEY ARE TEMPLATE PLACEHOLDERS BEING FILLED WITH ACTUAL VALUES**
+
+COMPARISON INSTRUCTIONS:
+=======================
+
+1. WHAT TO IDENTIFY AS MEANINGFUL DIFFERENCES:
+   ✓ Changes in policy terms, conditions, or procedures
+   ✓ Addition or removal of clauses, requirements, or benefits
+   ✓ Modifications in amounts, percentages, timeframes, or durations
+   ✓ Changes in contact information, addresses, or service procedures
+   ✓ Alterations in regulatory references or compliance requirements
+   ✓ Different document requirements or submission procedures
+   ✓ Changes in legal language that affect policy interpretation
+
+2. WHAT TO IGNORE (NOT meaningful differences):
+   ✗ Any content involving placeholders (see examples above)
+   ✗ Personal information differences (names, addresses, phone numbers)
+   ✗ Policy-specific identifiers (policy numbers, application numbers)
+   ✗ Personal identification numbers (Aadhaar, PAN, etc.)
+   ✗ Personalized dates (policy issue dates, birth dates)
+   ✗ Formatting differences (spacing, font, alignment)
+   ✗ Minor grammatical or spelling corrections that don't change meaning
+
+3. OUTPUT FORMAT:
+   If you find meaningful differences, present them as a clear, numbered list:
+   
+   1. [Specific description of difference]
+   2. [Another difference if found]
+   3. [Continue numbering for each difference]
+
+   If NO meaningful differences exist, respond with exactly:
+   "NO_MEANINGFUL_DIFFERENCES"
     
     DOCUMENTS TO COMPARE:
     
