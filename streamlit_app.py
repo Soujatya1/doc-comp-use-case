@@ -430,6 +430,7 @@ class DocumentComparer:
        ✗ Dates that are clearly personalized (policy issue dates, birth dates)
        ✗ Formatting differences (spacing, font, alignment)
        ✗ Minor grammatical or spelling corrections that don't change meaning
+       ✗ Numbering/serialization
     
     3. OUTPUT FORMAT:
        If you find meaningful differences, present them as a clear, numbered list:
