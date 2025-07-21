@@ -1,10 +1,11 @@
 import streamlit as st
-import fitz
+import fitz  # PyMuPDF
 import io
 import pandas as pd
 import os
 from openai import AzureOpenAI
-from xlsxwriter import Workbook
+import re
+import xlsxwriter
 
 st.set_page_config(layout="wide")
 
@@ -14,27 +15,19 @@ EXCLUDE_SECTIONS = [
 ]
 
 SECTION_HEADERS = [
-    "FORWARDING LETTER",
-    "PREAMBLE",
-    "SCHEDULE",
-    "DEFINITIONS & ABBREVIATIONS",
-    "PART C",
-    "PART D",
-    "PART F",
-    "PART G",
-    "ANNEXURE AA",
-    "ANNEXURE BB",
-    "ANNEXURE CC"
+    "FORWARDING LETTER", "PREAMBLE", "SCHEDULE", "DEFINITIONS & ABBREVIATIONS",
+    "PART C", "PART D", "PART F", "PART G", "ANNEXURE AA", "ANNEXURE BB", "ANNEXURE CC"
 ]
 
 # Azure OpenAI Configuration UI
-st.sidebar.header("Azure OpenAI Configuration")
+st.sidebar.header("🔧 Azure OpenAI Configuration")
 
 # Get Azure OpenAI credentials from UI or environment variables
 azure_endpoint = st.sidebar.text_input(
     "Azure OpenAI Endpoint", 
     value=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
-    help="Your Azure OpenAI endpoint URL (e.g., https://your-resource.openai.azure.com/)"
+    help="Your Azure OpenAI endpoint URL (e.g., https://your-resource.openai.azure.com/)",
+    placeholder="https://your-resource.openai.azure.com/"
 )
 
 azure_api_key = st.sidebar.text_input(
@@ -56,6 +49,27 @@ deployment_name = st.sidebar.text_input(
     help="Your Azure OpenAI deployment/model name"
 )
 
+# Test connection button
+if st.sidebar.button("🔍 Test Connection"):
+    if azure_endpoint and azure_api_key:
+        try:
+            test_client = AzureOpenAI(
+                azure_endpoint=azure_endpoint,
+                api_key=azure_api_key,
+                api_version=azure_api_version
+            )
+            # Simple test call
+            test_response = test_client.chat.completions.create(
+                model=deployment_name,
+                messages=[{"role": "user", "content": "Hello"}],
+                max_tokens=10
+            )
+            st.sidebar.success("✅ Connection successful!")
+        except Exception as e:
+            st.sidebar.error(f"❌ Connection failed: {str(e)}")
+    else:
+        st.sidebar.error("❌ Please enter endpoint and API key")
+
 # Initialize Azure OpenAI client
 def get_azure_client():
     if not azure_endpoint or not azure_api_key:
@@ -69,7 +83,7 @@ def get_azure_client():
         )
         return client
     except Exception as e:
-        st.sidebar.error(f"Error initializing Azure OpenAI client: {str(e)}")
+        st.error(f"Error initializing Azure OpenAI client: {str(e)}")
         return None
 
 def is_image_only_page(page):
@@ -80,35 +94,22 @@ def extract_final_filtered_pdf(uploaded_file_bytes, is_customer_copy=False):
     doc = fitz.open(stream=uploaded_file_bytes, filetype="pdf")
     filtered_doc = fitz.open()
     text_summary = ""
-    debug_logs = ""
     current_section = "UNKNOWN"
 
     for page_num in range(len(doc)):
         page = doc[page_num]
         text = page.get_text("text").strip()
         text_lower = text.lower()
-        log = f"Page {page_num + 1}: "
-
-        if is_image_only_page(page):
-            debug_logs += log + " Skipped (Image-only page)\n"
+        if is_image_only_page(page) or any(section.lower() in text_lower for section in EXCLUDE_SECTIONS):
             continue
-
-        if any(section.lower() in text_lower for section in EXCLUDE_SECTIONS):
-            debug_logs += log + "Skipped (Excluded section)\n"
-            continue
-
         for header in SECTION_HEADERS:
             if header.lower() in text_lower:
                 current_section = header
                 break
-
-        debug_logs += log + f"Included (Section: {current_section})\n"
-
         section_label = f"\n--- {current_section} ---"
         page_marker = f"\n--- Page {page_num + 1} ---"
         filtered_doc.insert_pdf(doc, from_page=page_num, to_page=page_num)
         text_summary += f"{section_label}{page_marker}\n{text.strip()}\n"
-
     output_stream = io.BytesIO()
     if len(filtered_doc) > 0:
         filtered_doc.save(output_stream)
@@ -116,6 +117,21 @@ def extract_final_filtered_pdf(uploaded_file_bytes, is_customer_copy=False):
         return text_summary.strip(), output_stream
     else:
         return "", None
+
+def extract_product_name_and_uin(text):
+    lines = text.splitlines()
+    product_name = ""
+    product_uin = ""
+    for i, line in enumerate(lines[:50]):
+        if not product_name and 5 < len(line.strip()) < 80 and not line.isupper() and any(word in line.lower() for word in ["life", "policy", "plan", "bima"]):
+            product_name = line.strip()
+        if not product_uin:
+            match = re.search(r'UIN[:\s]*([A-Z0-9\-]{10,})', line)
+            if match:
+                product_uin = match.group(1).strip()
+        if product_name and product_uin:
+            break
+    return product_name, product_uin
 
 def is_header_line(line):
     return line.strip().upper() in SECTION_HEADERS
@@ -285,7 +301,6 @@ You are a compliance analyst comparing the **{section_name}** section from two i
 - **Ignore differences in clause numbers** (e.g., "15)" vs "16)") if the **clause title and content are the same**. Focus on **clause content**, not numbering.
 - **Ignore placeholders**, formatting differences (punctuation, casing, spacing, line breaks), and standard footers.
 
----
 
 ### Specific comparison rules:
 
@@ -293,18 +308,24 @@ You are a compliance analyst comparing the **{section_name}** section from two i
    - Match clauses based on **titles/headings**.
    - Treat semantically equivalent headings as the same, e.g., "email id", "Email Id", "E-Mail ID", "EMAILID".
 
-2. **Ignore the following elements completely:**
-   - Clause number mismatches (if content is same)
+2. ** Strictly Ignore the following elements completely:**
+   - mention or report clause numbering differences at all**, even if they differ. Focus only on content or field-level differences.
    - Placeholder values like `<xxxx>`, `<dd-mm-yyyy>`, `<amount>`, `Rs. 1,00,000`, etc.
    - Signature blocks, authorized signatories, seals
    - Company addresses, disclaimers, office registration details
-   - Fields with values '-', 'Not Applicable' in one copy but placeholder in the other
+   - Fields with values '-', 'Not Applicable' in one copy but placeholder in the other 
 
 3. **Section-specific checks:**
-   - In **FORWARDING LETTER**, ensure `Policy Name` and `Plan Type` match,Document Type ,fields,clauses
+   - In **FORWARDING LETTER**, ensure `Policy Name` and `Plan Type` match,Document Type match,fields,clauses
    - In **SCHEDULE**, explicitly check :`Due Dates of First Annuity Instalment`
-       
-
+   - In **PART G**, explicitly check for the subsection **"Address & Contact Details of Ombudsman Centres"**:
+      - Determine whether this subsection is **present in both copies, or missing in one of them**.
+      - If present in both, compare the **Ombudsman city names** in both copies (ignore full addresses).
+      - If the subsection is missing in one copy, clearly state:
+      • The subsection "Address & Contact Details of Ombudsman Centres" is present in the Filed Copy but missing in the Customer Copy.
+      - Ignore differences in:
+        - Street address formatting
+        - Phone numbers, email IDs, pincode formatting
 ---
 
 ### Output format:
@@ -320,10 +341,9 @@ Otherwise, report only meaningful structural or contextual differences using thi
 • In the Filed Copy, Document "XYZ" is present but missed in Customer Copy.
 • In the Filed Copy, the clause "ABC" is missing, which is present in the Customer Copy.  
 • In the Customer Copy, the Policy Name / Policy Type "XYZ" differs from the Filed Copy.  
-• In the Customer Copy, the field "Due Dates of First Annuity Instalment" is present, but missing in the Filed Copy. 
-
-• In the Customer Copy, instead of "Phone Number & Mobile No", the field "Toll-Free Number" is used.  
-• In the Customer Copy, "Premiums to be paid for" is missing, but present in the Filed Copy.  
+• In the Customer Copy, the field "Due Dates of First Annuity Instalment" is present, but missing in the Filed Copy.   
+• In the Customer Copy, instead of "Phone Number & Mobile No", the field "Toll-Free Number" is used. 
+• In the Customer Copy instead of Phone Number & Mobile No only Phone Number filed is present
 
 ---
 
@@ -346,30 +366,52 @@ Customer Copy - {section_name}:
     except Exception as e:
         return f"Error during comparison: {str(e)}"
 
-# ---------------- Streamlit UI ----------------
-st.title("PDF Policy Comparison Tool")
+# --- Streamlit UI ---
+st.title("📋 PDF Policy Comparison Tool")
 
-# Check if Azure OpenAI is configured
-if not azure_endpoint or not azure_api_key:
+# Display connection status
+if azure_endpoint and azure_api_key:
+    st.success("✅ Azure OpenAI configured")
+else:
     st.warning("⚠️ Please configure Azure OpenAI credentials in the sidebar before proceeding.")
 
 # File upload section
+st.subheader("📁 Upload Documents")
 col1, col2 = st.columns(2)
 with col1:
     filed_copy = st.file_uploader("Upload Filed Copy", type="pdf", key="filed")
 with col2:
     customer_copy = st.file_uploader("Upload Customer Copy", type="pdf", key="customer")
 
-if st.button("Process and Download"):
+if st.button("🔍 Extract and Download Excel", use_container_width=True):
     if not azure_endpoint or not azure_api_key:
-        st.error("Please configure Azure OpenAI credentials in the sidebar first.")
+        st.error("❌ Please configure Azure OpenAI credentials in the sidebar first.")
     elif filed_copy and customer_copy:
-        with st.spinner("Processing PDFs..."):
-            filed_text, filed_pdf = extract_final_filtered_pdf(filed_copy.read(), is_customer_copy=False)
-            customer_text, customer_pdf = extract_final_filtered_pdf(customer_copy.read(), is_customer_copy=True)
+        with st.spinner("🔄 Processing PDFs and analyzing sections..."):
+            # Extract text from PDFs
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            status_text.text("Extracting text from Filed Copy...")
+            progress_bar.progress(10)
+            filed_text, _ = extract_final_filtered_pdf(filed_copy.read(), is_customer_copy=False)
+            
+            status_text.text("Extracting text from Customer Copy...")
+            progress_bar.progress(20)
+            customer_text, _ = extract_final_filtered_pdf(customer_copy.read(), is_customer_copy=True)
 
+            status_text.text("Extracting product information...")
+            progress_bar.progress(30)
+            product_name, product_uin = extract_product_name_and_uin(filed_text)
+            sample_id = os.path.splitext(customer_copy.name)[0]
+
+            # Extract sections
+            status_text.text("Extracting document sections...")
+            progress_bar.progress(40)
             filed_sections = extract_sections(filed_text)
             customer_sections = extract_sections(customer_text)
+            
+            # Extract specific sections
             filed_sections["FORWARDING LETTER"] = extract_forwarding_letter_section_filed(filed_text)
             customer_sections["FORWARDING LETTER"] = extract_forwarding_letter_section_customer(customer_text)
             filed_sections["SCHEDULE"] = extract_schedule_section(filed_text)
@@ -381,65 +423,136 @@ if st.button("Process and Download"):
             filed_sections["PART F"] = extract_part_f_section(filed_text)
             customer_sections["PART F"] = extract_part_f_section(customer_text)
 
+            # Compare sections with GPT
             data = []
-            progress_bar = st.progress(0)
             total_sections = len(SECTION_HEADERS)
             
             for i, section in enumerate(SECTION_HEADERS):
-                progress_bar.progress((i + 1) / total_sections)
+                status_text.text(f"Analyzing {section} section with AI...")
+                progress = 50 + (i * 40 / total_sections)
+                progress_bar.progress(int(progress))
+                
                 filed_sec = filed_sections.get(section, "")
                 cust_sec = customer_sections.get(section, "")
                 difference = get_section_difference_with_gpt(section, filed_sec, cust_sec)
                 data.append({
-                    "Section": section,
-                    "Filed Copy": filed_sec,
-                    "Customer Copy": cust_sec,
-                    "Meaningful Difference": difference
+                    "Product Name": product_name,
+                    "Product UIN": product_uin,
+                    "Samples affected": sample_id,
+                    "Observation - Category": "Mismatch between Filed Copy and Customer Copy",
+                    "Page": section,
+                    "Sub-category of Observation": difference
                 })
 
+            status_text.text("Generating Excel report...")
+            progress_bar.progress(95)
+            
             df = pd.DataFrame(data)
-            st.success("Processing completed!")
-            st.dataframe(df[["Section","Filed Copy","Customer Copy", "Meaningful Difference"]], use_container_width=True)
+            
+            # Display results
+            st.success("✅ Analysis completed!")
+            st.subheader("📊 Analysis Results")
+            st.dataframe(df[["Product Name","Product UIN","Samples affected", "Observation - Category","Page","Sub-category of Observation"]], use_container_width=True)
+                
+            # Generate Excel with formatting
+            output_excel = io.BytesIO()
+            with pd.ExcelWriter(output_excel, engine="xlsxwriter") as writer:
+                df.to_excel(writer, sheet_name="Observations", index=False, startrow=1, header=False)
+                workbook = writer.book
+                worksheet = writer.sheets["Observations"]
+                
+                # Define formats
+                header_format = workbook.add_format({
+                    'bold': True,
+                    'text_wrap': True,
+                    'valign': 'middle',
+                    'align': 'center',
+                    'fg_color': '#99d8f7',
+                    'border': 1
+                })
+                merge_format = workbook.add_format({
+                    'bold': True,
+                    'align': 'center',
+                    'valign': 'vcenter',
+                    'text_wrap': True,
+                    'border': 1
+                })
+                
+                # Write headers
+                headers = list(df.columns)
+                for col_num, header in enumerate(headers):
+                    worksheet.write(0, col_num, header, header_format)
+                
+                # Group and merge cells
+                grouped = df.groupby(["Product Name", "Product UIN", "Samples affected","Observation - Category"], sort=False)
+                row_offset = 1  # Skip header row
+                for _, group in grouped:
+                    group_len = len(group)
+                    if group_len > 1:
+                        worksheet.merge_range(row_offset, 0, row_offset + group_len - 1, 0, group.iloc[0]["Product Name"], merge_format)
+                        worksheet.merge_range(row_offset, 1, row_offset + group_len - 1, 1, group.iloc[0]["Product UIN"], merge_format)
+                        worksheet.merge_range(row_offset, 2, row_offset + group_len - 1, 2, group.iloc[0]["Samples affected"], merge_format)
+                        worksheet.merge_range(row_offset, 3, row_offset + group_len - 1, 3, group.iloc[0]["Observation - Category"], merge_format)
+                    row_offset += group_len
 
-            excel_out = io.BytesIO()
-            with pd.ExcelWriter(excel_out, engine="xlsxwriter") as writer:
-                df.to_excel(writer, index=False, sheet_name="Sections")
-            excel_out.seek(0)
-
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.download_button("Download Excel", data=excel_out.getvalue(),
-                                   file_name="extracted_sections.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-            with col2:
-                if filed_pdf:
-                    st.download_button("Filtered Filed Copy PDF", data=filed_pdf.getvalue(), file_name="filtered_filed_copy.pdf")
-            with col3:
-                if customer_pdf:
-                    st.download_button("Filtered Customer Copy PDF", data=customer_pdf.getvalue(), file_name="filtered_customer_copy.pdf")
+            progress_bar.progress(100)
+            status_text.text("Ready for download!")
+            output_excel.seek(0)
+            
+            # Download button
+            st.download_button(
+                label="📥 Download Excel Report",
+                data=output_excel.getvalue(),
+                file_name=f"policy_comparison_{sample_id}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+            
+            # Clear progress indicators
+            progress_bar.empty()
+            status_text.empty()
     else:
-        st.warning("Please upload both PDFs.")
+        st.warning("⚠️ Please upload both PDF files.")
 
-# Instructions
-with st.expander("ℹ️ Instructions"):
+# Instructions section
+with st.expander("ℹ️ How to Use This Tool"):
     st.markdown("""
-    ### How to use this tool:
+    ### Step-by-Step Guide:
     
-    1. **Configure Azure OpenAI** in the sidebar:
+    1. **Configure Azure OpenAI** (Sidebar):
        - Enter your Azure OpenAI endpoint URL
-       - Enter your API key
-       - Set the API version (default: 2024-02-15-preview)
-       - Enter your deployment name (model name)
+       - Enter your API key (will be masked)
+       - Set the API version
+       - Enter your deployment/model name
+       - Test the connection using the "Test Connection" button
     
-    2. **Upload PDFs**: Upload both the Filed Copy and Customer Copy PDF files
+    2. **Upload Documents**:
+       - Upload the Filed Copy PDF
+       - Upload the Customer Copy PDF
     
-    3. **Process**: Click "Process and Download" to compare the documents
+    3. **Process**:
+       - Click "Extract and Download Excel"
+       - Wait for the AI analysis to complete
     
-    4. **Download**: Get the comparison results in Excel format and filtered PDFs
+    4. **Download**:
+       - Review the results in the displayed table
+       - Download the formatted Excel report
     
     ### Environment Variables (Optional):
-    You can also set these environment variables instead of entering credentials manually:
+    You can set these environment variables to avoid manual entry:
     - `AZURE_OPENAI_ENDPOINT`
-    - `AZURE_OPENAI_API_KEY`
+    - `AZURE_OPENAI_API_KEY` 
     - `AZURE_OPENAI_API_VERSION`
     - `AZURE_OPENAI_DEPLOYMENT_NAME`
+    
+    ### Features:
+    - 🤖 AI-powered document comparison
+    - 📊 Formatted Excel output with merged cells
+    - 🔍 Section-by-section analysis
+    - 📋 Product information extraction
+    - ✅ Connection testing
     """)
+
+# Footer
+st.markdown("---")
+st.markdown("*Powered by Azure OpenAI • Built with Streamlit*")
