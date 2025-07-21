@@ -6,3 +6,4 @@ openpyxl
 langchain
 pdfplumber
 PyMuPDF
+xlsxwriter
