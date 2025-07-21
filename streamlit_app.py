@@ -6,7 +6,6 @@ import os
 from openai import AzureOpenAI
 
 st.set_page_config(layout="wide")
-load_dotenv()
 
 EXCLUDE_SECTIONS = [
     "First Premium Receipt",
