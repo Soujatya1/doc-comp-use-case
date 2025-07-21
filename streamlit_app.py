@@ -1,9 +1,10 @@
 import streamlit as st
-import fitz  # PyMuPDF
+import fitz
 import io
 import pandas as pd
 import os
 from openai import AzureOpenAI
+from xlsxwriter import Workbook
 
 st.set_page_config(layout="wide")
 
