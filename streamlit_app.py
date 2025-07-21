@@ -3,18 +3,14 @@ import fitz  # PyMuPDF
 import io
 import pandas as pd
 import os
-import openai
-from dotenv import load_dotenv
+from openai import AzureOpenAI
 
 st.set_page_config(layout="wide")
 load_dotenv()
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
 EXCLUDE_SECTIONS = [
     "First Premium Receipt",
     "Your Renewal Page",
-
 ]
 
 SECTION_HEADERS = [
@@ -30,6 +26,51 @@ SECTION_HEADERS = [
     "ANNEXURE BB",
     "ANNEXURE CC"
 ]
+
+# Azure OpenAI Configuration UI
+st.sidebar.header("Azure OpenAI Configuration")
+
+# Get Azure OpenAI credentials from UI or environment variables
+azure_endpoint = st.sidebar.text_input(
+    "Azure OpenAI Endpoint", 
+    value=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
+    help="Your Azure OpenAI endpoint URL (e.g., https://your-resource.openai.azure.com/)"
+)
+
+azure_api_key = st.sidebar.text_input(
+    "Azure OpenAI API Key", 
+    value=os.getenv("AZURE_OPENAI_API_KEY", ""),
+    type="password",
+    help="Your Azure OpenAI API key"
+)
+
+azure_api_version = st.sidebar.text_input(
+    "API Version", 
+    value=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview"),
+    help="Azure OpenAI API version"
+)
+
+deployment_name = st.sidebar.text_input(
+    "Deployment Name", 
+    value=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4"),
+    help="Your Azure OpenAI deployment/model name"
+)
+
+# Initialize Azure OpenAI client
+def get_azure_client():
+    if not azure_endpoint or not azure_api_key:
+        return None
+    
+    try:
+        client = AzureOpenAI(
+            azure_endpoint=azure_endpoint,
+            api_key=azure_api_key,
+            api_version=azure_api_version
+        )
+        return client
+    except Exception as e:
+        st.sidebar.error(f"Error initializing Azure OpenAI client: {str(e)}")
+        return None
 
 def is_image_only_page(page):
     text = page.get_text("text").strip()
@@ -76,176 +117,167 @@ def extract_final_filtered_pdf(uploaded_file_bytes, is_customer_copy=False):
     else:
         return "", None
 
-# ---------------- Streamlit UI ----------------
+def is_header_line(line):
+    return line.strip().upper() in SECTION_HEADERS
 
-col1, col2 = st.columns(2)
-with col1:
-    filed_copy = st.file_uploader("Upload Filed Copy", type="pdf", key="filed")
-with col2:
-    customer_copy = st.file_uploader("Upload Customer Copy", type="pdf", key="customer")
+def extract_policy_name_and_type(lines, heading_index):
+    search_window = lines[max(0, heading_index - 10):heading_index]
+    policy_name = ""
+    plan_description = ""
+    for i in range(len(search_window) - 1):
+        current_line = search_window[i].strip()
+        next_line = search_window[i + 1].strip()
+        if (
+            current_line
+            and len(current_line.split()) > 3
+            and not current_line.isupper()
+            and any(word in next_line.lower() for word in ["linked", "participating", "annuity", "plan", "deferred"])
+        ):
+            policy_name = current_line
+            plan_description = next_line
+            break
+    return policy_name, plan_description
 
-if st.button("Process and Download"):
-    if filed_copy and customer_copy:
-        filed_text, filed_pdf = extract_final_filtered_pdf(filed_copy.read(), is_customer_copy=False)
-        customer_text, customer_pdf = extract_final_filtered_pdf(customer_copy.read(), is_customer_copy=True)
+def extract_forwarding_letter_section_filed(text):
+    lines = text.splitlines()
+    try:
+        start_idx = next(i for i, line in enumerate(lines) if line.strip().upper() == "FORWARDING LETTER")
+        end_idx = next(i for i, line in enumerate(lines[start_idx+1:], start=start_idx+1)
+                       if is_header_line(line) and line.strip().upper() != "FORWARDING LETTER")
+        policy_name, plan_type = extract_policy_name_and_type(lines, start_idx)
+        section = "\n".join(lines[start_idx:end_idx]).strip()
+        if policy_name and plan_type:
+            section = f"Policy Name: {policy_name}\nPlan Type: {plan_type}\n\n" + section
+        return section
+    except StopIteration:
+        return "FORWARDING LETTER section not found in Filed Copy."
 
-        def is_header_line(line):
-            return line.strip().upper() in SECTION_HEADERS
+def extract_forwarding_letter_section_customer(text):
+    lines = text.splitlines()
+    try:
+        end_idx = next(i for i, line in enumerate(lines) if line.strip().upper() == "PREAMBLE")
+        policy_name, plan_type = extract_policy_name_and_type(lines, end_idx)
+        section = "\n".join(lines[:end_idx]).strip()
+        if policy_name and plan_type:
+            section = f"Policy Name: {policy_name}\nPlan Type: {plan_type}\n\n" + section
+        return section
+    except StopIteration:
+        return "FORWARDING LETTER section not found in Customer Copy."
 
-        def extract_policy_name_and_type(lines, heading_index):
-            search_window = lines[max(0, heading_index - 10):heading_index]
-            policy_name = ""
-            plan_description = ""
-            for i in range(len(search_window) - 1):
-                current_line = search_window[i].strip()
-                next_line = search_window[i + 1].strip()
-                if (
-                    current_line
-                    and len(current_line.split()) > 3
-                    and not current_line.isupper()
-                    and any(word in next_line.lower() for word in ["linked", "participating", "annuity", "plan", "deferred"])
-                ):
-                    policy_name = current_line
-                    plan_description = next_line
-                    break
-            return policy_name, plan_description
+def extract_schedule_section(text):
+    lines = text.splitlines()
+    try:
+        preamble_start = next(i for i, line in enumerate(lines) if line.strip().upper() == "PREAMBLE")
+        schedule_start = None
+        for j in range(preamble_start + 1, len(lines)):
+            if lines[j].strip().upper() == "SCHEDULE":
+                schedule_start = j + 1
+                break
+        if schedule_start is None:
+            return "SCHEDULE header not found after PREAMBLE."
+    except StopIteration:
+        return "PREAMBLE not found. Cannot extract SCHEDULE section."
+    end_idx = None
+    for j in range(schedule_start, len(lines)):
+        line_upper = lines[j].strip().upper()
+        if "GRIEVANCE REDRESSAL MECHANISM" in line_upper or line_upper in SECTION_HEADERS and line_upper != "SCHEDULE":
+            end_idx = j
+            break
+    end_idx = end_idx or len(lines)
+    return "\n".join(lines[schedule_start:end_idx]).strip()
 
-        def extract_forwarding_letter_section_filed(text):
-            lines = text.splitlines()
-            try:
-                start_idx = next(i for i, line in enumerate(lines) if line.strip().upper() == "FORWARDING LETTER")
-                end_idx = next(i for i, line in enumerate(lines[start_idx+1:], start=start_idx+1)
-                               if is_header_line(line) and line.strip().upper() != "FORWARDING LETTER")
-                policy_name, plan_type = extract_policy_name_and_type(lines, start_idx)
-                section = "\n".join(lines[start_idx:end_idx]).strip()
-                if policy_name and plan_type:
-                    section = f"Policy Name: {policy_name}\nPlan Type: {plan_type}\n\n" + section
-                return section
-            except StopIteration:
-                return "FORWARDING LETTER section not found in Filed Copy."
+def extract_part_c_section(text):
+    lines = text.splitlines()
+    try:
+        start_idx = next(i for i, line in enumerate(lines) if line.strip().upper() == "DEFINITIONS & ABBREVIATIONS")
+        part_c_start = None
+        for j in range(start_idx + 1, len(lines)):
+            if lines[j].strip().upper() == "PART C":
+                part_c_start = j + 1
+                break
+        if part_c_start is None:
+            return "PART C header not found after DEFINITIONS & ABBREVIATIONS."
+    except StopIteration:
+        return "DEFINITIONS & ABBREVIATIONS not found. Cannot extract PART C."
+    end_idx = None
+    for j in range(part_c_start, len(lines)):
+        if lines[j].strip().upper() == "PART D":
+            end_idx = j
+            break
+    end_idx = end_idx or len(lines)
+    return "\n".join(lines[part_c_start:end_idx]).strip()
 
-        def extract_forwarding_letter_section_customer(text):
-            lines = text.splitlines()
-            try:
-                end_idx = next(i for i, line in enumerate(lines) if line.strip().upper() == "PREAMBLE")
-                policy_name, plan_type = extract_policy_name_and_type(lines, end_idx)
-                section = "\n".join(lines[:end_idx]).strip()
-                if policy_name and plan_type:
-                    section = f"Policy Name: {policy_name}\nPlan Type: {plan_type}\n\n" + section
-                return section
-            except StopIteration:
-                return "FORWARDING LETTER section not found in Customer Copy."
+def extract_part_d_section(text):
+    lines = text.splitlines()
+    try:
+        start_idx = next(i for i, line in enumerate(lines) if line.strip().upper() == "PART C")
+        part_d_start = None
+        for j in range(start_idx + 1, len(lines)):
+            if lines[j].strip().upper() == "PART D":
+                part_d_start = j + 1
+                break
+        if part_d_start is None:
+            return "PART D header not found after PART C."
+    except StopIteration:
+        return "PART C not found. Cannot extract PART D."
+    end_idx = None
+    for j in range(part_d_start, len(lines)):
+        if lines[j].strip().upper() == "PART E":
+            end_idx = j
+            break
+    end_idx = end_idx or len(lines)
+    return "\n".join(lines[part_d_start:end_idx]).strip()
 
-        def extract_schedule_section(text):
-            lines = text.splitlines()
-            try:
-                preamble_start = next(i for i, line in enumerate(lines) if line.strip().upper() == "PREAMBLE")
-                schedule_start = None
-                for j in range(preamble_start + 1, len(lines)):
-                    if lines[j].strip().upper() == "SCHEDULE":
-                        schedule_start = j + 1
-                        break
-                if schedule_start is None:
-                    return "SCHEDULE header not found after PREAMBLE."
-            except StopIteration:
-                return "PREAMBLE not found. Cannot extract SCHEDULE section."
-            end_idx = None
-            for j in range(schedule_start, len(lines)):
-                line_upper = lines[j].strip().upper()
-                if "GRIEVANCE REDRESSAL MECHANISM" in line_upper or line_upper in SECTION_HEADERS and line_upper != "SCHEDULE":
-                    end_idx = j
-                    break
-            end_idx = end_idx or len(lines)
-            return "\n".join(lines[schedule_start:end_idx]).strip()
+def extract_part_f_section(text):
+    lines = text.splitlines()
+    try:
+        start_idx = next(i for i, line in enumerate(lines) if line.strip().upper() == "PART E")
+        part_f_start = None
+        for j in range(start_idx + 1, len(lines)):
+            if lines[j].strip().upper() == "PART F":
+                part_f_start = j + 1
+                break
+        if part_f_start is None:
+            return "PART F header not found after PART E."
+    except StopIteration:
+        return "PART E not found. Cannot extract PART F."
+    end_idx = None
+    for j in range(part_f_start, len(lines)):
+        if lines[j].strip().upper() == "PART G":
+            end_idx = j
+            break
+    end_idx = end_idx or len(lines)
+    return "\n".join(lines[part_f_start:end_idx]).strip()
 
-        def extract_part_c_section(text):
-            lines = text.splitlines()
-            try:
-                start_idx = next(i for i, line in enumerate(lines) if line.strip().upper() == "DEFINITIONS & ABBREVIATIONS")
-                part_c_start = None
-                for j in range(start_idx + 1, len(lines)):
-                    if lines[j].strip().upper() == "PART C":
-                        part_c_start = j + 1
-                        break
-                if part_c_start is None:
-                    return "PART C header not found after DEFINITIONS & ABBREVIATIONS."
-            except StopIteration:
-                return "DEFINITIONS & ABBREVIATIONS not found. Cannot extract PART C."
-            end_idx = None
-            for j in range(part_c_start, len(lines)):
-                if lines[j].strip().upper() == "PART D":
-                    end_idx = j
-                    break
-            end_idx = end_idx or len(lines)
-            return "\n".join(lines[part_c_start:end_idx]).strip()
+def extract_sections(text):
+    lines = text.splitlines()
+    sections = {}
+    header_positions = []
+    for i, line in enumerate(lines):
+        if is_header_line(line):
+            matched_header = line.strip().upper()
+            header_positions.append((matched_header, i))
+    for idx, (header, start_idx) in enumerate(header_positions):
+        if header in ["FORWARDING LETTER", "SCHEDULE", "PART C", "PART D", "PART F"]:
+            continue
+        end_idx = header_positions[idx + 1][1] if idx + 1 < len(header_positions) else len(lines)
+        content = "\n".join(lines[start_idx:end_idx]).strip()
+        sections[header] = content
+    return sections
 
-        def extract_part_d_section(text):
-            lines = text.splitlines()
-            try:
-                start_idx = next(i for i, line in enumerate(lines) if line.strip().upper() == "PART C")
-                part_d_start = None
-                for j in range(start_idx + 1, len(lines)):
-                    if lines[j].strip().upper() == "PART D":
-                        part_d_start = j + 1
-                        break
-                if part_d_start is None:
-                    return "PART D header not found after PART C."
-            except StopIteration:
-                return "PART C not found. Cannot extract PART D."
-            end_idx = None
-            for j in range(part_d_start, len(lines)):
-                if lines[j].strip().upper() == "PART E":
-                    end_idx = j
-                    break
-            end_idx = end_idx or len(lines)
-            return "\n".join(lines[part_d_start:end_idx]).strip()
+def get_section_difference_with_gpt(section_name, filed_text, customer_text):
+    client = get_azure_client()
+    if not client:
+        return "Error: Azure OpenAI client not configured. Please check your credentials."
+    
+    if not filed_text.strip() and not customer_text.strip():
+        return "Section missing in both copies."
+    if not filed_text.strip():
+        return "Section present in Customer Copy but missing in Filed Copy."
+    if not customer_text.strip():
+        return "Section present in Filed Copy but missing in Customer Copy."
 
-        def extract_part_f_section(text):
-            lines = text.splitlines()
-            try:
-                start_idx = next(i for i, line in enumerate(lines) if line.strip().upper() == "PART E")
-                part_f_start = None
-                for j in range(start_idx + 1, len(lines)):
-                    if lines[j].strip().upper() == "PART F":
-                        part_f_start = j + 1
-                        break
-                if part_f_start is None:
-                    return "PART F header not found after PART E."
-            except StopIteration:
-                return "PART E not found. Cannot extract PART F."
-            end_idx = None
-            for j in range(part_f_start, len(lines)):
-                if lines[j].strip().upper() == "PART G":
-                    end_idx = j
-                    break
-            end_idx = end_idx or len(lines)
-            return "\n".join(lines[part_f_start:end_idx]).strip()
-
-        def extract_sections(text):
-            lines = text.splitlines()
-            sections = {}
-            header_positions = []
-            for i, line in enumerate(lines):
-                if is_header_line(line):
-                    matched_header = line.strip().upper()
-                    header_positions.append((matched_header, i))
-            for idx, (header, start_idx) in enumerate(header_positions):
-                if header in ["FORWARDING LETTER", "SCHEDULE", "PART C", "PART D", "PART F"]:
-                    continue
-                end_idx = header_positions[idx + 1][1] if idx + 1 < len(header_positions) else len(lines)
-                content = "\n".join(lines[start_idx:end_idx]).strip()
-                sections[header] = content
-            return sections
-
-        def get_section_difference_with_gpt(section_name, filed_text, customer_text):
-            if not filed_text.strip() and not customer_text.strip():
-                return "Section missing in both copies."
-            if not filed_text.strip():
-                return "Section present in Customer Copy but missing in Filed Copy."
-            if not customer_text.strip():
-                return "Section present in Filed Copy but missing in Customer Copy."
-
-            prompt = f"""
+    prompt = f"""
 You are a compliance analyst comparing the **{section_name}** section from two insurance policy documents: the Filed Copy and the Customer Copy.
 
 ### Your task:
@@ -304,59 +336,110 @@ Customer Copy - {section_name}:
 {customer_text}
 """
 
-            try:
-                response = openai.ChatCompletion.create(
-                    model="gpt-4o",
-                    temperature=0,
-                
-                    messages=[{"role": "user", "content": prompt}]
-                )
-                return response.choices[0].message.content.strip()
-            except Exception as e:
-                return f"Error during comparison: {str(e)}"
+    try:
+        response = client.chat.completions.create(
+            model=deployment_name,
+            temperature=0,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return f"Error during comparison: {str(e)}"
 
-        filed_sections = extract_sections(filed_text)
-        customer_sections = extract_sections(customer_text)
-        filed_sections["FORWARDING LETTER"] = extract_forwarding_letter_section_filed(filed_text)
-        customer_sections["FORWARDING LETTER"] = extract_forwarding_letter_section_customer(customer_text)
-        filed_sections["SCHEDULE"] = extract_schedule_section(filed_text)
-        customer_sections["SCHEDULE"] = extract_schedule_section(customer_text)
-        filed_sections["PART C"] = extract_part_c_section(filed_text)
-        customer_sections["PART C"] = extract_part_c_section(customer_text)
-        filed_sections["PART D"] = extract_part_d_section(filed_text)
-        customer_sections["PART D"] = extract_part_d_section(customer_text)
-        filed_sections["PART F"] = extract_part_f_section(filed_text)
-        customer_sections["PART F"] = extract_part_f_section(customer_text)
+# ---------------- Streamlit UI ----------------
+st.title("PDF Policy Comparison Tool")
 
-        data = []
-        for section in SECTION_HEADERS:
-            filed_sec = filed_sections.get(section, "")
-            cust_sec = customer_sections.get(section, "")
-            difference = get_section_difference_with_gpt(section, filed_sec, cust_sec)
-            data.append({
-                "Section": section,
-                "Filed Copy": filed_sec,
-                "Customer Copy": cust_sec,
-                "Meaningful Difference": difference
-            })
+# Check if Azure OpenAI is configured
+if not azure_endpoint or not azure_api_key:
+    st.warning("⚠️ Please configure Azure OpenAI credentials in the sidebar before proceeding.")
 
-        df = pd.DataFrame(data)
-        st.dataframe(df[["Section","Filed Copy","Customer Copy", "Meaningful Difference"]], use_container_width=True)
+# File upload section
+col1, col2 = st.columns(2)
+with col1:
+    filed_copy = st.file_uploader("Upload Filed Copy", type="pdf", key="filed")
+with col2:
+    customer_copy = st.file_uploader("Upload Customer Copy", type="pdf", key="customer")
 
-        excel_out = io.BytesIO()
-        with pd.ExcelWriter(excel_out, engine="xlsxwriter") as writer:
-            df.to_excel(writer, index=False, sheet_name="Sections")
-        excel_out.seek(0)
+if st.button("Process and Download"):
+    if not azure_endpoint or not azure_api_key:
+        st.error("Please configure Azure OpenAI credentials in the sidebar first.")
+    elif filed_copy and customer_copy:
+        with st.spinner("Processing PDFs..."):
+            filed_text, filed_pdf = extract_final_filtered_pdf(filed_copy.read(), is_customer_copy=False)
+            customer_text, customer_pdf = extract_final_filtered_pdf(customer_copy.read(), is_customer_copy=True)
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.download_button("Download Excel", data=excel_out.getvalue(),
-                               file_name="extracted_sections.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        with col2:
-            if filed_pdf:
-                st.download_button("Filtered Filed Copy PDF", data=filed_pdf.getvalue(), file_name="filtered_filed_copy.pdf")
-        with col3:
-            if customer_pdf:
-                st.download_button("Filtered Customer Copy PDF", data=customer_pdf.getvalue(), file_name="filtered_customer_copy.pdf")
+            filed_sections = extract_sections(filed_text)
+            customer_sections = extract_sections(customer_text)
+            filed_sections["FORWARDING LETTER"] = extract_forwarding_letter_section_filed(filed_text)
+            customer_sections["FORWARDING LETTER"] = extract_forwarding_letter_section_customer(customer_text)
+            filed_sections["SCHEDULE"] = extract_schedule_section(filed_text)
+            customer_sections["SCHEDULE"] = extract_schedule_section(customer_text)
+            filed_sections["PART C"] = extract_part_c_section(filed_text)
+            customer_sections["PART C"] = extract_part_c_section(customer_text)
+            filed_sections["PART D"] = extract_part_d_section(filed_text)
+            customer_sections["PART D"] = extract_part_d_section(customer_text)
+            filed_sections["PART F"] = extract_part_f_section(filed_text)
+            customer_sections["PART F"] = extract_part_f_section(customer_text)
+
+            data = []
+            progress_bar = st.progress(0)
+            total_sections = len(SECTION_HEADERS)
+            
+            for i, section in enumerate(SECTION_HEADERS):
+                progress_bar.progress((i + 1) / total_sections)
+                filed_sec = filed_sections.get(section, "")
+                cust_sec = customer_sections.get(section, "")
+                difference = get_section_difference_with_gpt(section, filed_sec, cust_sec)
+                data.append({
+                    "Section": section,
+                    "Filed Copy": filed_sec,
+                    "Customer Copy": cust_sec,
+                    "Meaningful Difference": difference
+                })
+
+            df = pd.DataFrame(data)
+            st.success("Processing completed!")
+            st.dataframe(df[["Section","Filed Copy","Customer Copy", "Meaningful Difference"]], use_container_width=True)
+
+            excel_out = io.BytesIO()
+            with pd.ExcelWriter(excel_out, engine="xlsxwriter") as writer:
+                df.to_excel(writer, index=False, sheet_name="Sections")
+            excel_out.seek(0)
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.download_button("Download Excel", data=excel_out.getvalue(),
+                                   file_name="extracted_sections.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            with col2:
+                if filed_pdf:
+                    st.download_button("Filtered Filed Copy PDF", data=filed_pdf.getvalue(), file_name="filtered_filed_copy.pdf")
+            with col3:
+                if customer_pdf:
+                    st.download_button("Filtered Customer Copy PDF", data=customer_pdf.getvalue(), file_name="filtered_customer_copy.pdf")
     else:
         st.warning("Please upload both PDFs.")
+
+# Instructions
+with st.expander("ℹ️ Instructions"):
+    st.markdown("""
+    ### How to use this tool:
+    
+    1. **Configure Azure OpenAI** in the sidebar:
+       - Enter your Azure OpenAI endpoint URL
+       - Enter your API key
+       - Set the API version (default: 2024-02-15-preview)
+       - Enter your deployment name (model name)
+    
+    2. **Upload PDFs**: Upload both the Filed Copy and Customer Copy PDF files
+    
+    3. **Process**: Click "Process and Download" to compare the documents
+    
+    4. **Download**: Get the comparison results in Excel format and filtered PDFs
+    
+    ### Environment Variables (Optional):
+    You can also set these environment variables instead of entering credentials manually:
+    - `AZURE_OPENAI_ENDPOINT`
+    - `AZURE_OPENAI_API_KEY`
+    - `AZURE_OPENAI_API_VERSION`
+    - `AZURE_OPENAI_DEPLOYMENT_NAME`
+    """)
