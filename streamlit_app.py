@@ -1,5 +1,5 @@
 import streamlit as st
-import fitz  # PyMuPDF
+import fitz
 import io
 import pandas as pd
 import os
@@ -19,10 +19,8 @@ SECTION_HEADERS = [
     "PART C", "PART D", "PART F", "PART G", "ANNEXURE AA", "ANNEXURE BB", "ANNEXURE CC"
 ]
 
-# Azure OpenAI Configuration UI
 st.sidebar.header("🔧 Azure OpenAI Configuration")
 
-# Get Azure OpenAI credentials from UI or environment variables
 azure_endpoint = st.sidebar.text_input(
     "Azure OpenAI Endpoint", 
     value=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
@@ -49,7 +47,6 @@ deployment_name = st.sidebar.text_input(
     help="Your Azure OpenAI deployment/model name"
 )
 
-# Test connection button
 if st.sidebar.button("🔍 Test Connection"):
     if azure_endpoint and azure_api_key:
         try:
@@ -58,7 +55,6 @@ if st.sidebar.button("🔍 Test Connection"):
                 api_key=azure_api_key,
                 api_version=azure_api_version
             )
-            # Simple test call
             test_response = test_client.chat.completions.create(
                 model=deployment_name,
                 messages=[{"role": "user", "content": "Hello"}],
@@ -70,7 +66,6 @@ if st.sidebar.button("🔍 Test Connection"):
     else:
         st.sidebar.error("❌ Please enter endpoint and API key")
 
-# Initialize Azure OpenAI client
 def get_azure_client():
     if not azure_endpoint or not azure_api_key:
         return None
@@ -366,10 +361,8 @@ Customer Copy - {section_name}:
     except Exception as e:
         return f"Error during comparison: {str(e)}"
 
-# --- Streamlit UI ---
 st.title("📋 PDF Policy Comparison Tool")
 
-# Display connection status
 if azure_endpoint and azure_api_key:
     st.success("✅ Azure OpenAI configured")
 else:
@@ -388,7 +381,6 @@ if st.button("🔍 Extract and Download Excel", use_container_width=True):
         st.error("❌ Please configure Azure OpenAI credentials in the sidebar first.")
     elif filed_copy and customer_copy:
         with st.spinner("🔄 Processing PDFs and analyzing sections..."):
-            # Extract text from PDFs
             progress_bar = st.progress(0)
             status_text = st.empty()
             
@@ -405,13 +397,11 @@ if st.button("🔍 Extract and Download Excel", use_container_width=True):
             product_name, product_uin = extract_product_name_and_uin(filed_text)
             sample_id = os.path.splitext(customer_copy.name)[0]
 
-            # Extract sections
             status_text.text("Extracting document sections...")
             progress_bar.progress(40)
             filed_sections = extract_sections(filed_text)
             customer_sections = extract_sections(customer_text)
             
-            # Extract specific sections
             filed_sections["FORWARDING LETTER"] = extract_forwarding_letter_section_filed(filed_text)
             customer_sections["FORWARDING LETTER"] = extract_forwarding_letter_section_customer(customer_text)
             filed_sections["SCHEDULE"] = extract_schedule_section(filed_text)
@@ -423,7 +413,6 @@ if st.button("🔍 Extract and Download Excel", use_container_width=True):
             filed_sections["PART F"] = extract_part_f_section(filed_text)
             customer_sections["PART F"] = extract_part_f_section(customer_text)
 
-            # Compare sections with GPT
             data = []
             total_sections = len(SECTION_HEADERS)
             
@@ -449,19 +438,16 @@ if st.button("🔍 Extract and Download Excel", use_container_width=True):
             
             df = pd.DataFrame(data)
             
-            # Display results
             st.success("✅ Analysis completed!")
             st.subheader("📊 Analysis Results")
             st.dataframe(df[["Product Name","Product UIN","Samples affected", "Observation - Category","Page","Sub-category of Observation"]], use_container_width=True)
                 
-            # Generate Excel with formatting
             output_excel = io.BytesIO()
             with pd.ExcelWriter(output_excel, engine="xlsxwriter") as writer:
                 df.to_excel(writer, sheet_name="Observations", index=False, startrow=1, header=False)
                 workbook = writer.book
                 worksheet = writer.sheets["Observations"]
                 
-                # Define formats
                 header_format = workbook.add_format({
                     'bold': True,
                     'text_wrap': True,
@@ -478,14 +464,12 @@ if st.button("🔍 Extract and Download Excel", use_container_width=True):
                     'border': 1
                 })
                 
-                # Write headers
                 headers = list(df.columns)
                 for col_num, header in enumerate(headers):
                     worksheet.write(0, col_num, header, header_format)
                 
-                # Group and merge cells
                 grouped = df.groupby(["Product Name", "Product UIN", "Samples affected","Observation - Category"], sort=False)
-                row_offset = 1  # Skip header row
+                row_offset = 1
                 for _, group in grouped:
                     group_len = len(group)
                     if group_len > 1:
@@ -499,7 +483,6 @@ if st.button("🔍 Extract and Download Excel", use_container_width=True):
             status_text.text("Ready for download!")
             output_excel.seek(0)
             
-            # Download button
             st.download_button(
                 label="📥 Download Excel Report",
                 data=output_excel.getvalue(),
@@ -508,51 +491,7 @@ if st.button("🔍 Extract and Download Excel", use_container_width=True):
                 use_container_width=True
             )
             
-            # Clear progress indicators
             progress_bar.empty()
             status_text.empty()
     else:
         st.warning("⚠️ Please upload both PDF files.")
-
-# Instructions section
-with st.expander("ℹ️ How to Use This Tool"):
-    st.markdown("""
-    ### Step-by-Step Guide:
-    
-    1. **Configure Azure OpenAI** (Sidebar):
-       - Enter your Azure OpenAI endpoint URL
-       - Enter your API key (will be masked)
-       - Set the API version
-       - Enter your deployment/model name
-       - Test the connection using the "Test Connection" button
-    
-    2. **Upload Documents**:
-       - Upload the Filed Copy PDF
-       - Upload the Customer Copy PDF
-    
-    3. **Process**:
-       - Click "Extract and Download Excel"
-       - Wait for the AI analysis to complete
-    
-    4. **Download**:
-       - Review the results in the displayed table
-       - Download the formatted Excel report
-    
-    ### Environment Variables (Optional):
-    You can set these environment variables to avoid manual entry:
-    - `AZURE_OPENAI_ENDPOINT`
-    - `AZURE_OPENAI_API_KEY` 
-    - `AZURE_OPENAI_API_VERSION`
-    - `AZURE_OPENAI_DEPLOYMENT_NAME`
-    
-    ### Features:
-    - 🤖 AI-powered document comparison
-    - 📊 Formatted Excel output with merged cells
-    - 🔍 Section-by-section analysis
-    - 📋 Product information extraction
-    - ✅ Connection testing
-    """)
-
-# Footer
-st.markdown("---")
-st.markdown("*Powered by Azure OpenAI • Built with Streamlit*")
