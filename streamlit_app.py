@@ -47,7 +47,7 @@ deployment_name = st.sidebar.text_input(
     help="Your Azure OpenAI deployment/model name"
 )
 
-if st.sidebar.button("🔍 Test Connection"):
+if st.sidebar.button("Test Connection"):
     if azure_endpoint and azure_api_key:
         try:
             test_client = AzureOpenAI(
@@ -60,11 +60,11 @@ if st.sidebar.button("🔍 Test Connection"):
                 messages=[{"role": "user", "content": "Hello"}],
                 max_tokens=10
             )
-            st.sidebar.success("✅ Connection successful!")
+            st.sidebar.success("Connection successful!")
         except Exception as e:
-            st.sidebar.error(f"❌ Connection failed: {str(e)}")
+            st.sidebar.error(f"Connection failed: {str(e)}")
     else:
-        st.sidebar.error("❌ Please enter endpoint and API key")
+        st.sidebar.error("Please enter endpoint and API key")
 
 def get_azure_client():
     if not azure_endpoint or not azure_api_key:
@@ -361,26 +361,25 @@ Customer Copy - {section_name}:
     except Exception as e:
         return f"Error during comparison: {str(e)}"
 
-st.title("📋 PDF Policy Comparison Tool")
+st.title("PDF Policy Comparison Tool")
 
 if azure_endpoint and azure_api_key:
-    st.success("✅ Azure OpenAI configured")
+    st.success("Azure OpenAI configured")
 else:
-    st.warning("⚠️ Please configure Azure OpenAI credentials in the sidebar before proceeding.")
+    st.warning("Please configure Azure OpenAI credentials in the sidebar before proceeding.")
 
-# File upload section
-st.subheader("📁 Upload Documents")
+st.subheader("Upload Documents")
 col1, col2 = st.columns(2)
 with col1:
     filed_copy = st.file_uploader("Upload Filed Copy", type="pdf", key="filed")
 with col2:
     customer_copy = st.file_uploader("Upload Customer Copy", type="pdf", key="customer")
 
-if st.button("🔍 Extract and Download Excel", use_container_width=True):
+if st.button("Extract and Download Excel", use_container_width=True):
     if not azure_endpoint or not azure_api_key:
-        st.error("❌ Please configure Azure OpenAI credentials in the sidebar first.")
+        st.error("Please configure Azure OpenAI credentials in the sidebar first.")
     elif filed_copy and customer_copy:
-        with st.spinner("🔄 Processing PDFs and analyzing sections..."):
+        with st.spinner("Processing PDFs and analyzing sections..."):
             progress_bar = st.progress(0)
             status_text = st.empty()
             
@@ -438,8 +437,8 @@ if st.button("🔍 Extract and Download Excel", use_container_width=True):
             
             df = pd.DataFrame(data)
             
-            st.success("✅ Analysis completed!")
-            st.subheader("📊 Analysis Results")
+            st.success("Analysis completed!")
+            st.subheader("Analysis Results")
             st.dataframe(df[["Product Name","Product UIN","Samples affected", "Observation - Category","Page","Sub-category of Observation"]], use_container_width=True)
                 
             output_excel = io.BytesIO()
@@ -484,7 +483,7 @@ if st.button("🔍 Extract and Download Excel", use_container_width=True):
             output_excel.seek(0)
             
             st.download_button(
-                label="📥 Download Excel Report",
+                label="Download Excel Report",
                 data=output_excel.getvalue(),
                 file_name=f"policy_comparison_{sample_id}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -494,4 +493,4 @@ if st.button("🔍 Extract and Download Excel", use_container_width=True):
             progress_bar.empty()
             status_text.empty()
     else:
-        st.warning("⚠️ Please upload both PDF files.")
+        st.warning("⚠Please upload both PDF files.")
