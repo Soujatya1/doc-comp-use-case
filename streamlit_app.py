@@ -134,11 +134,11 @@ def extract_sample_number_from_filename(self, filename: str) -> str:
             r'(\d{8,})__Sample',
             r'^(\d{8,})',
         ]
-        for pattern in patterns:
-            match = re.search(pattern, filename, re.IGNORECASE)
-            if match:
-                return match.group(1)
-        return "001"
+    for pattern in patterns:
+        match = re.search(pattern, filename, re.IGNORECASE)
+        if match:
+            return match.group(1)
+    return "001"
 
 def is_header_line(line):
     return line.strip().upper() in SECTION_HEADERS
