@@ -128,6 +128,18 @@ def extract_product_name_and_uin(text):
             break
     return product_name, product_uin
 
+def extract_sample_number_from_filename(self, filename: str) -> str:
+    patterns = [
+            r'(\d{10})__Sample_\d+_',
+            r'(\d{8,})__Sample',
+            r'^(\d{8,})',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, filename, re.IGNORECASE)
+            if match:
+                return match.group(1)
+        return "001"
+
 def is_header_line(line):
     return line.strip().upper() in SECTION_HEADERS
 
@@ -394,7 +406,7 @@ if st.button("Extract and Download Excel", use_container_width=True):
             status_text.text("Extracting product information...")
             progress_bar.progress(30)
             product_name, product_uin = extract_product_name_and_uin(filed_text)
-            sample_id = os.path.splitext(customer_copy.name)[0]
+            sample_id = extract_sample_number_from_filename(customer_copy.name)
 
             status_text.text("Extracting document sections...")
             progress_bar.progress(40)
