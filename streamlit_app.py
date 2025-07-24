@@ -128,7 +128,7 @@ def extract_product_name_and_uin(text):
             break
     return product_name, product_uin
 
-def extract_sample_number_from_filename(self, filename: str) -> str:
+def extract_sample_number_from_filename(filename: str) -> str:
     patterns = [
             r'(\d{10})__Sample_\d+_',
             r'(\d{8,})__Sample',
