@@ -303,6 +303,8 @@ def get_section_difference_with_gpt(section_name, filed_text, customer_text):
     prompt = f"""
 You are a compliance analyst comparing the **{section_name}** section from two insurance policy documents: the Filed Copy and the Customer Copy.
 
+IMPORTANT: Provide your analysis directly without any headers, labels, or introductory text like "Comparison Output" or "Analysis Results".
+
 ### Your task:
 - Perform a **strict clause-by-clause or field-by-field comparison** between the two versions.
 - **Ignore differences in clause numbers** (e.g., "15)" vs "16)") if the **clause title and content are the same**. Focus on **clause content**, not numbering.
