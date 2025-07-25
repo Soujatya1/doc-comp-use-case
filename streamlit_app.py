@@ -81,6 +81,26 @@ def get_azure_client():
         st.error(f"Error initializing Azure OpenAI client: {str(e)}")
         return None
 
+def normalize_text_for_comparison(text):
+    """Remove placeholders and normalize text before comparison"""
+    import re
+    
+    # Replace common placeholder patterns
+    placeholder_patterns = [
+        r'<[^>]*>',  # <xxxx>, <dd-mm-yyyy>, etc.
+        r'Rs\.\s*\d+[,\d]*',  # Rs. 1,00,000
+        r'\b[Xx]{2,}\b',  # XXX, XXXX
+        r'\b_{2,}\b',  # ___
+        r'\[field\]|\[blank\]',  # [field], [blank]
+        r'\bN/?A\b|\bNot Applicable\b',  # N/A, Not Applicable
+    ]
+    
+    normalized_text = text
+    for pattern in placeholder_patterns:
+        normalized_text = re.sub(pattern, '[PLACEHOLDER]', normalized_text, flags=re.IGNORECASE)
+    
+    return normalized_text
+
 def is_image_only_page(page):
     text = page.get_text("text").strip()
     return not text and (page.get_images(full=True) or page.get_drawings())
@@ -300,71 +320,83 @@ def get_section_difference_with_gpt(section_name, filed_text, customer_text):
     if not customer_text.strip():
         return "Section present in Filed Copy but missing in Customer Copy."
 
+    # Normalize texts to remove placeholders before comparison
+    normalized_filed_text = normalize_text_for_comparison(filed_text)
+    normalized_customer_text = normalize_text_for_comparison(customer_text)
+
     prompt = f"""
 You are a compliance analyst comparing the **{section_name}** section from two insurance policy documents: the Filed Copy and the Customer Copy.
 
-CRITICAL RULE - IGNORE PLACEHOLDERS COMPLETELY:
-Before comparing any content, you must COMPLETELY IGNORE and treat as identical ANY of these placeholder patterns:
-- Text in angle brackets: <xxxx>, <dd-mm-yyyy>, <amount>, <name>, <address>, etc.
-- Generic monetary values: Rs. 1,00,000, Rs. X,XX,XXX, etc.
-- Date placeholders: DD-MM-YYYY, dd/mm/yyyy, etc.
-- Generic text placeholders: XXXX, _____, [blank], [field], etc.
-- Fields with values '-', 'Not Applicable', 'N/A' vs placeholders
-- Any content that appears to be a template placeholder
+CRITICAL RULE - PLACEHOLDERS HAVE BEEN PRE-PROCESSED:
+The texts below have already been normalized to replace all placeholder values with [PLACEHOLDER]. 
+DO NOT report any differences involving [PLACEHOLDER] tokens - they represent normalized placeholder content.
 
-IMPORTANT: Provide your analysis directly without any headers, labels, or introductory text.
+IMPORTANT: Provide your analysis directly without any headers, labels, or introductory text like "Comparison Output" or "Analysis Results".
 
-### Your task:
+### Your task (STRICTLY ADHERE TO THESE BELOW POINTERS):
 - Perform a **strict clause-by-clause or field-by-field comparison** between the two versions.
-- **COMPLETELY IGNORE differences in clause numbers** (e.g., "15)" vs "16)") if the clause title and content are the same.
-- **COMPLETELY IGNORE all placeholder values as listed above**
+- **Ignore differences in clause numbers** (e.g., "15)" vs "16)") if the **clause title and content are the same**. Focus on **clause content**, not numbering.
+- **Ignore [PLACEHOLDER] tokens completely** - these represent normalized placeholder values.
 
-### Comparison rules:
+
+### Specific comparison rules:
 
 1. **Clause Matching:**
-   - Match clauses based on **titles/headings** only
-   - Treat semantically equivalent headings as identical
+   - Match clauses based on **titles/headings**.
+   - Treat semantically equivalent headings as the same, e.g., "email id", "Email Id", "E-Mail ID", "EMAILID".
 
-2. **Strictly ignore these elements (DO NOT REPORT ANY DIFFERENCES FOR THESE):**
-   - Clause numbering differences
-   - ANY placeholder values (see critical rule above)
+2. ** Strictly Ignore the following elements completely:**
+   - **DO NOT mention or report clause numbering differences at all**, even if they differ. Focus only on content or field-level differences.
+   - **[PLACEHOLDER] tokens** - these represent normalized placeholders
    - Signature blocks, authorized signatories, seals
    - Company addresses, disclaimers, office registration details
-   - Formatting differences (punctuation, casing, spacing, line breaks)
+   - Fields with values '-', 'Not Applicable' in one copy but [PLACEHOLDER] in the other
 
-3. **Pre-processing step:**
-   Before comparison, mentally replace all placeholder patterns with [PLACEHOLDER] in both texts, then compare.
-
-4. **Section-specific checks:**
-   - In **FORWARDING LETTER**: Policy Name, Plan Type, Document Type matching
-   - In **SCHEDULE**: Check for "Due Dates of First Annuity Instalment"
-   - In **PART G**: Check "Address & Contact Details of Ombudsman Centres" subsection presence and Ombudsman city names only
+3. **Section-specific checks:**
+   - In **FORWARDING LETTER**, ensure `Policy Name` and `Plan Type` match,Document Type match,fields,clauses
+   - In **SCHEDULE**, explicitly check :`Due Dates of First Annuity Instalment`
+   - In **PART G**, explicitly check for the subsection **"Address & Contact Details of Ombudsman Centres"**:
+      - Determine whether this subsection is **present in both copies, or missing in one of them**.
+      - If present in both, compare the **Ombudsman city names** in both copies (ignore full addresses).
+      - If the subsection is missing in one copy, clearly state:
+      • The subsection "Address & Contact Details of Ombudsman Centres" is present in the Filed Copy but missing in the Customer Copy.
+      - Ignore differences in:
+        - Street address formatting
+        - Phone numbers, email IDs, pincode formatting
+---
 
 ### Output format:
 
-If sections are structurally identical after ignoring placeholders:
+If the sections are structurally identical:
 **Both copies are identical.**
 
-Otherwise, report only meaningful structural differences:
-• In the Customer Copy, the field "XYZ" is missing, which is present in the Filed Copy.
-• In the Filed Copy, the clause "ABC" is missing, which is present in the Customer Copy.
-• [Continue with other meaningful differences only]
+Otherwise, report only meaningful structural or contextual differences using this format:
 
-### Comparison Inputs:
+• In the Customer Copy, the field "XYZ" is missing, which is present in the Filed Copy.  
+• In the Filed Copy, the field "XYZ" is missing, which is present in the Customer Copy.
+• In the Customer Copy, Document "XYZ" is used instead of Document "ABC" the Filed Copy.
+• In the Filed Copy, Document "XYZ" is present but missed in Customer Copy.
+• In the Filed Copy, the clause "ABC" is missing, which is present in the Customer Copy.  
+• In the Customer Copy, the Policy Name / Policy Type "XYZ" differs from the Filed Copy.  
+• In the Customer Copy, the field "Due Dates of First Annuity Instalment" is present, but missing in the Filed Copy.   
+• In the Customer Copy, instead of "Phone Number & Mobile No", the field "Toll-Free Number" is used. 
+• In the Customer Copy instead of Phone Number & Mobile No only Phone Number filed is present
+
+---
+
+### Comparison Inputs (Pre-processed to remove placeholders):
 
 Filed Copy - {section_name}:
-{filed_text}
+{normalized_filed_text}
 
 Customer Copy - {section_name}:
-{customer_text}
-
-Remember: Focus ONLY on structural differences, completely ignore all placeholder values and formatting.
+{normalized_customer_text}
 """
 
     try:
         response = client.chat.completions.create(
             model=deployment_name,
-            temperature=0,  # Keep at 0 for consistency
+            temperature=0,
             messages=[{"role": "user", "content": prompt}]
         )
         return response.choices[0].message.content.strip()
