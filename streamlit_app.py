@@ -316,6 +316,7 @@ Understand which portion of the source input documents contain placeholders like
 - `<amount>`, `<rupees>`, `<annuity type>`, `<sum assured>`
 - `<name>`, `<address>`, `<mobile>`, `<email>`
 - Or any token enclosed in angle brackets `< >`
+- 'Not Applicable', 'NA', '-'
 and do not include these as part of the differences output response
  
 ###  Section-specific checks:
