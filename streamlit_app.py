@@ -305,7 +305,7 @@ You are a compliance analyst comparing the **{section_name}** section from two i
 
 IMPORTANT: Provide your analysis directly without any headers, labels, or introductory text like "Comparison Output" or "Analysis Results".
 
-### Your task:
+### Your task (STRICTLY ADHERE TO THESE BELOW POINTERS):
 - Perform a **strict clause-by-clause or field-by-field comparison** between the two versions.
 - **Ignore differences in clause numbers** (e.g., "15)" vs "16)") if the **clause title and content are the same**. Focus on **clause content**, not numbering.
 - **Ignore placeholders**, formatting differences (punctuation, casing, spacing, line breaks), and standard footers.
@@ -323,7 +323,6 @@ IMPORTANT: Provide your analysis directly without any headers, labels, or introd
    - Signature blocks, authorized signatories, seals
    - Company addresses, disclaimers, office registration details
    - Fields with values '-', 'Not Applicable' in one copy but placeholder in the other
-   - any kind of structural or spaces/gaps
 
 3. **Section-specific checks:**
    - In **FORWARDING LETTER**, ensure `Policy Name` and `Plan Type` match,Document Type match,fields,clauses
