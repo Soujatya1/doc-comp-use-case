@@ -324,7 +324,7 @@ You must only report **meaningful structural or contextual differences**. Avoid 
      - Or any token enclosed in angle brackets `< >`
    - If both copies contain the same clause but one has a placeholder and the other a real value, **this must not be treated as a difference**.
    - Only flag a difference if the **entire clause** is missing in one copy and present in the other.
-   - Fields where one side has `-`, `NA`, or `Not Applicable` and the other has a placeholder.
+   - Fields where one copy has `-`, `NA`, or `Not Applicable` and the other has a placeholder, IGNORE consider that as a difference.
  
 2. **Ignore the following completely:**
    - Placeholder or dummy values like `<xxxxxx>`, `Rs. 1,00,000`, `<dd-mm-yyyy>`, etc.
