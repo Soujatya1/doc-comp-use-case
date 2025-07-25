@@ -336,7 +336,8 @@ IMPORTANT: Provide your analysis directly without any headers, labels, or introd
 ### Your task (STRICTLY ADHERE TO THESE BELOW POINTERS):
 - Perform a **strict clause-by-clause or field-by-field comparison** between the two versions.
 - **Ignore differences in clause numbers** (e.g., "15)" vs "16)") if the **clause title and content are the same**. Focus on **clause content**, not numbering.
-- **Ignore [PLACEHOLDER] tokens completely** - these represent normalized placeholder values.
+- **Ignore [PLACEHOLDER] tokens completely** - these represent normalized placeholder values. No differences for these to be considered STRICTLY.
+- Numbering/serialization differences to be IGNORED
 
 
 ### Specific comparison rules:
