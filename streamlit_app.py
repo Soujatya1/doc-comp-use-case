@@ -313,16 +313,20 @@ IMPORTANT: Provide your analysis directly without any headers, labels, or introd
 
 ### Specific comparison rules:
 
-1. **Clause Matching:**
-   - Match clauses based on **titles/headings**.
-   - Treat semantically equivalent headings as the same, e.g., "email id", "Email Id", "E-Mail ID", "EMAILID".
+1. **COMPLETELY IGNORE the following (do not report any differences for these):**
+   - **Clause numbering differences** (e.g., "15)" vs "16)")
+   - **All placeholder values**, including but not limited to:
+     - Angle bracket placeholders: `<xxxx>`, `<dd-mm-yyyy>`, `<amount>`, `<name>`, `<date>`, etc.
+     - Currency placeholders: `Rs. 1,00,000`, `₹ X,XX,XXX`, `Amount: ___`, etc.
+     - Date placeholders: `DD/MM/YYYY`, `__/__/____`, etc.
+     - Generic placeholders: `XXXXX`, `_____`, `[   ]`, `(    )`, etc.
+     - Empty/null indicators: `-`, `N/A`, `Not Applicable`, `NIL`, blank fields
+   - **Formatting differences**: punctuation, casing, spacing, line breaks
+   - **Standard elements**: company addresses, disclaimers, signature blocks, seals, office registration details
 
-2. ** Strictly Ignore the following elements completely:**
-   - mention or report clause numbering differences at all**, even if they differ. Focus only on content or field-level differences.
-   - Placeholder values like `<xxxx>`, `<dd-mm-yyyy>`, `<amount>`, `Rs. 1,00,000`, etc.
-   - Signature blocks, authorized signatories, seals
-   - Company addresses, disclaimers, office registration details
-   - Fields with values '-', 'Not Applicable' in one copy but placeholder in the other 
+2. **Clause Matching:**
+   - Match clauses based on **titles/headings and content**
+   - Treat semantically equivalent headings as identical (e.g., "Email ID" = "E-mail Id" = "EMAILID")
 
 3. **Section-specific checks:**
    - In **FORWARDING LETTER**, ensure `Policy Name` and `Plan Type` match,Document Type match,fields,clauses
