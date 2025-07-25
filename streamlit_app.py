@@ -303,58 +303,52 @@ def get_section_difference_with_gpt(section_name, filed_text, customer_text):
     prompt = f"""
 You are a compliance analyst comparing the **{section_name}** section from two insurance policy documents: the Filed Copy and the Customer Copy.
 
-IMPORTANT: Provide your analysis directly without any headers, labels, or introductory text like "Comparison Output" or "Analysis Results".
+CRITICAL RULE - IGNORE PLACEHOLDERS COMPLETELY:
+Before comparing any content, you must COMPLETELY IGNORE and treat as identical ANY of these placeholder patterns:
+- Text in angle brackets: <xxxx>, <dd-mm-yyyy>, <amount>, <name>, <address>, etc.
+- Generic monetary values: Rs. 1,00,000, Rs. X,XX,XXX, etc.
+- Date placeholders: DD-MM-YYYY, dd/mm/yyyy, etc.
+- Generic text placeholders: XXXX, _____, [blank], [field], etc.
+- Fields with values '-', 'Not Applicable', 'N/A' vs placeholders
+- Any content that appears to be a template placeholder
 
-### Your task (STRICTLY ADHERE TO THESE BELOW POINTERS):
+IMPORTANT: Provide your analysis directly without any headers, labels, or introductory text.
+
+### Your task:
 - Perform a **strict clause-by-clause or field-by-field comparison** between the two versions.
-- **Ignore differences in clause numbers** (e.g., "15)" vs "16)") if the **clause title and content are the same**. Focus on **clause content**, not numbering.
-- **Ignore placeholders**, formatting differences (punctuation, casing, spacing, line breaks), and standard footers.
+- **COMPLETELY IGNORE differences in clause numbers** (e.g., "15)" vs "16)") if the clause title and content are the same.
+- **COMPLETELY IGNORE all placeholder values as listed above**
 
-
-### Specific comparison rules:
+### Comparison rules:
 
 1. **Clause Matching:**
-   - Match clauses based on **titles/headings**.
-   - Treat semantically equivalent headings as the same, e.g., "email id", "Email Id", "E-Mail ID", "EMAILID".
+   - Match clauses based on **titles/headings** only
+   - Treat semantically equivalent headings as identical
 
-2. ** Strictly Ignore the following elements completely:**
-   - mention or report clause numbering differences at all**, even if they differ. Focus only on content or field-level differences.
-   - Placeholder values like `<xxxx>`, `<dd-mm-yyyy>`, `<amount>`, `Rs. 1,00,000`, etc.
+2. **Strictly ignore these elements (DO NOT REPORT ANY DIFFERENCES FOR THESE):**
+   - Clause numbering differences
+   - ANY placeholder values (see critical rule above)
    - Signature blocks, authorized signatories, seals
    - Company addresses, disclaimers, office registration details
-   - Fields with values '-', 'Not Applicable' in one copy but placeholder in the other
+   - Formatting differences (punctuation, casing, spacing, line breaks)
 
-3. **Section-specific checks:**
-   - In **FORWARDING LETTER**, ensure `Policy Name` and `Plan Type` match,Document Type match,fields,clauses
-   - In **SCHEDULE**, explicitly check :`Due Dates of First Annuity Instalment`
-   - In **PART G**, explicitly check for the subsection **"Address & Contact Details of Ombudsman Centres"**:
-      - Determine whether this subsection is **present in both copies, or missing in one of them**.
-      - If present in both, compare the **Ombudsman city names** in both copies (ignore full addresses).
-      - If the subsection is missing in one copy, clearly state:
-      • The subsection "Address & Contact Details of Ombudsman Centres" is present in the Filed Copy but missing in the Customer Copy.
-      - Ignore differences in:
-        - Street address formatting
-        - Phone numbers, email IDs, pincode formatting
----
+3. **Pre-processing step:**
+   Before comparison, mentally replace all placeholder patterns with [PLACEHOLDER] in both texts, then compare.
+
+4. **Section-specific checks:**
+   - In **FORWARDING LETTER**: Policy Name, Plan Type, Document Type matching
+   - In **SCHEDULE**: Check for "Due Dates of First Annuity Instalment"
+   - In **PART G**: Check "Address & Contact Details of Ombudsman Centres" subsection presence and Ombudsman city names only
 
 ### Output format:
 
-If the sections are structurally identical:
+If sections are structurally identical after ignoring placeholders:
 **Both copies are identical.**
 
-Otherwise, report only meaningful structural or contextual differences using this format:
-
-• In the Customer Copy, the field "XYZ" is missing, which is present in the Filed Copy.  
-• In the Filed Copy, the field "XYZ" is missing, which is present in the Customer Copy.
-• In the Customer Copy, Document "XYZ" is used instead of Document "ABC" the Filed Copy.
-• In the Filed Copy, Document "XYZ" is present but missed in Customer Copy.
-• In the Filed Copy, the clause "ABC" is missing, which is present in the Customer Copy.  
-• In the Customer Copy, the Policy Name / Policy Type "XYZ" differs from the Filed Copy.  
-• In the Customer Copy, the field "Due Dates of First Annuity Instalment" is present, but missing in the Filed Copy.   
-• In the Customer Copy, instead of "Phone Number & Mobile No", the field "Toll-Free Number" is used. 
-• In the Customer Copy instead of Phone Number & Mobile No only Phone Number filed is present
-
----
+Otherwise, report only meaningful structural differences:
+• In the Customer Copy, the field "XYZ" is missing, which is present in the Filed Copy.
+• In the Filed Copy, the clause "ABC" is missing, which is present in the Customer Copy.
+• [Continue with other meaningful differences only]
 
 ### Comparison Inputs:
 
@@ -363,12 +357,14 @@ Filed Copy - {section_name}:
 
 Customer Copy - {section_name}:
 {customer_text}
+
+Remember: Focus ONLY on structural differences, completely ignore all placeholder values and formatting.
 """
 
     try:
         response = client.chat.completions.create(
             model=deployment_name,
-            temperature=0,
+            temperature=0,  # Keep at 0 for consistency
             messages=[{"role": "user", "content": prompt}]
         )
         return response.choices[0].message.content.strip()
