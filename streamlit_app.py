@@ -308,8 +308,28 @@ IMPORTANT: Provide your analysis directly without any headers, labels, or introd
 ### Your task:
 - Perform a **strict clause-by-clause or field-by-field comparison** between the two versions.
 - **Ignore differences in clause numbers** (e.g., "15)" vs "16)") if the **clause title and content are the same**. Focus on **clause content**, not numbering.
-- **Ignore placeholders**, formatting differences (punctuation, casing, spacing, line breaks), and standard footers.
+- **CRITICAL: Completely ignore ALL placeholder differences** - treat any placeholder as equivalent to any other placeholder or actual value.
 
+### PLACEHOLDER PATTERNS TO COMPLETELY IGNORE:
+
+**DO NOT report differences for any of these patterns:**
+- `<xxxx>`, `<dd-mm-yyyy>`, `<amount>`, `<name>`, `<date>`, `<value>`
+- `Rs. 1,00,000`, `Rs. 50,000`, `₹ 10,000` or any monetary amounts
+- `DD/MM/YYYY`, `01-01-2024`, `31-12-2023` or any date formats
+- `[Name]`, `[Amount]`, `[Date]`, `[Address]` or any bracketed placeholders
+- `XXXXXXX`, `YYYYYYY`, `ZZZZZZZ` or any series of repeated characters
+- `N/A`, `Not Applicable`, `-`, `NIL`, `NA` or any null value indicators
+- `To be filled`, `As applicable`, `As per policy` or similar instruction text
+- Sample names, addresses, phone numbers, email addresses used as examples
+- Policy numbers, certificate numbers, or any alphanumeric identifiers used as samples
+- Any field where one version has actual data and the other has a placeholder - these are NOT differences
+
+**EXAMPLES OF WHAT NOT TO REPORT:**
+- Filed Copy has `<Name>` and Customer Copy has `John Doe` → IGNORE
+- Filed Copy has `Rs. <Amount>` and Customer Copy has `Rs. 50,000` → IGNORE  
+- Filed Copy has `DD/MM/YYYY` and Customer Copy has `01-01-2024` → IGNORE
+- Filed Copy has `[Phone Number]` and Customer Copy has `9876543210` → IGNORE
+- Filed Copy has `Not Applicable` and Customer Copy has `-` → IGNORE
 
 ### Specific comparison rules:
 
@@ -317,16 +337,16 @@ IMPORTANT: Provide your analysis directly without any headers, labels, or introd
    - Match clauses based on **titles/headings**.
    - Treat semantically equivalent headings as the same, e.g., "email id", "Email Id", "E-Mail ID", "EMAILID".
 
-2. ** Strictly Ignore the following elements completely:**
-   - mention or report clause numbering differences at all**, even if they differ. Focus only on content or field-level differences.
-   - Placeholder values like `<xxxx>`, `<dd-mm-yyyy>`, `<amount>`, `Rs. 1,00,000`, etc.
+2. **Strictly Ignore the following elements completely:**
+   - **Never mention or report clause numbering differences at all**, even if they differ. Focus only on content or field-level differences.
+   - **ALL placeholder values and sample data as listed above**
    - Signature blocks, authorized signatories, seals
    - Company addresses, disclaimers, office registration details
-   - Fields with values '-', 'Not Applicable' in one copy but placeholder in the other 
+   - Formatting differences (punctuation, casing, spacing, line breaks)
 
 3. **Section-specific checks:**
-   - In **FORWARDING LETTER**, ensure `Policy Name` and `Plan Type` match,Document Type match,fields,clauses
-   - In **SCHEDULE**, explicitly check :`Due Dates of First Annuity Instalment`
+   - In **FORWARDING LETTER**, ensure `Policy Name` and `Plan Type` match, Document Type match, fields, clauses
+   - In **SCHEDULE**, explicitly check: `Due Dates of First Annuity Instalment`
    - In **PART G**, explicitly check for the subsection **"Address & Contact Details of Ombudsman Centres"**:
       - Determine whether this subsection is **present in both copies, or missing in one of them**.
       - If present in both, compare the **Ombudsman city names** in both copies (ignore full addresses).
@@ -335,24 +355,28 @@ IMPORTANT: Provide your analysis directly without any headers, labels, or introd
       - Ignore differences in:
         - Street address formatting
         - Phone numbers, email IDs, pincode formatting
+
+### CRITICAL RULE: 
+**If the only differences between the sections are placeholder values, formatting, or sample data, you MUST respond with "Both copies are identical."**
+
 ---
 
 ### Output format:
 
-If the sections are structurally identical:
+If the sections are structurally identical (ignoring all placeholders and formatting):
 **Both copies are identical.**
 
 Otherwise, report only meaningful structural or contextual differences using this format:
 
 • In the Customer Copy, the field "XYZ" is missing, which is present in the Filed Copy.  
 • In the Filed Copy, the field "XYZ" is missing, which is present in the Customer Copy.
-• In the Customer Copy, Document "XYZ" is used instead of Document "ABC" the Filed Copy.
-• In the Filed Copy, Document "XYZ" is present but missed in Customer Copy.
+• In the Customer Copy, Document "XYZ" is used instead of Document "ABC" in the Filed Copy.
+• In the Filed Copy, Document "XYZ" is present but missing in Customer Copy.
 • In the Filed Copy, the clause "ABC" is missing, which is present in the Customer Copy.  
 • In the Customer Copy, the Policy Name / Policy Type "XYZ" differs from the Filed Copy.  
 • In the Customer Copy, the field "Due Dates of First Annuity Instalment" is present, but missing in the Filed Copy.   
 • In the Customer Copy, instead of "Phone Number & Mobile No", the field "Toll-Free Number" is used. 
-• In the Customer Copy instead of Phone Number & Mobile No only Phone Number filed is present
+• In the Customer Copy instead of Phone Number & Mobile No only Phone Number field is present
 
 ---
 
