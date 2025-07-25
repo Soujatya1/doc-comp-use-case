@@ -81,26 +81,6 @@ def get_azure_client():
         st.error(f"Error initializing Azure OpenAI client: {str(e)}")
         return None
 
-def normalize_text_for_comparison(text):
-    """Remove placeholders and normalize text before comparison"""
-    import re
-    
-    # Replace common placeholder patterns
-    placeholder_patterns = [
-        r'<[^>]*>',  # <xxxx>, <dd-mm-yyyy>, etc.
-        r'Rs\.\s*\d+[,\d]*',  # Rs. 1,00,000
-        r'\b[Xx]{2,}\b',  # XXX, XXXX
-        r'\b_{2,}\b',  # ___
-        r'\[field\]|\[blank\]',  # [field], [blank]
-        r'\bN/?A\b|\bNot Applicable\b',  # N/A, Not Applicable
-    ]
-    
-    normalized_text = text
-    for pattern in placeholder_patterns:
-        normalized_text = re.sub(pattern, '[PLACEHOLDER]', normalized_text, flags=re.IGNORECASE)
-    
-    return normalized_text
-
 def is_image_only_page(page):
     text = page.get_text("text").strip()
     return not text and (page.get_images(full=True) or page.get_drawings())
@@ -320,25 +300,15 @@ def get_section_difference_with_gpt(section_name, filed_text, customer_text):
     if not customer_text.strip():
         return "Section present in Filed Copy but missing in Customer Copy."
 
-    # Normalize texts to remove placeholders before comparison
-    normalized_filed_text = normalize_text_for_comparison(filed_text)
-    normalized_customer_text = normalize_text_for_comparison(customer_text)
-
     prompt = f"""
 You are a compliance analyst comparing the **{section_name}** section from two insurance policy documents: the Filed Copy and the Customer Copy.
 
-CRITICAL RULE - PLACEHOLDERS HAVE BEEN PRE-PROCESSED:
-The texts below have already been normalized to replace all placeholder values with [PLACEHOLDER]. 
-DO NOT report any differences involving [PLACEHOLDER] tokens - they represent normalized placeholder content.
-
 IMPORTANT: Provide your analysis directly without any headers, labels, or introductory text like "Comparison Output" or "Analysis Results".
 
-### Your task (STRICTLY ADHERE TO THESE BELOW POINTERS):
+### Your task:
 - Perform a **strict clause-by-clause or field-by-field comparison** between the two versions.
 - **Ignore differences in clause numbers** (e.g., "15)" vs "16)") if the **clause title and content are the same**. Focus on **clause content**, not numbering.
-- **Ignore [PLACEHOLDER] tokens completely** - these represent normalized placeholder values. No differences for these to be considered STRICTLY.
-- Numbering/serialization differences to be IGNORED
-- DO NOT CONSIDER PUNCTUATION MARKS TO BE A DIFFERENCE DURING OUTPUT GENERATION
+- **Ignore placeholders**, formatting differences (punctuation, casing, spacing, line breaks), and standard footers.
 
 
 ### Specific comparison rules:
@@ -348,11 +318,11 @@ IMPORTANT: Provide your analysis directly without any headers, labels, or introd
    - Treat semantically equivalent headings as the same, e.g., "email id", "Email Id", "E-Mail ID", "EMAILID".
 
 2. ** Strictly Ignore the following elements completely:**
-   - **DO NOT mention or report clause numbering differences at all**, even if they differ. Focus only on content or field-level differences.
-   - **[PLACEHOLDER] tokens** - these represent normalized placeholders
+   - mention or report clause numbering differences at all**, even if they differ. Focus only on content or field-level differences.
+   - Placeholder values like `<xxxx>`, `<dd-mm-yyyy>`, `<amount>`, `Rs. 1,00,000`, etc.
    - Signature blocks, authorized signatories, seals
    - Company addresses, disclaimers, office registration details
-   - Fields with values '-', 'Not Applicable' in one copy but [PLACEHOLDER] in the other
+   - Fields with values '-', 'Not Applicable' in one copy but placeholder in the other 
 
 3. **Section-specific checks:**
    - In **FORWARDING LETTER**, ensure `Policy Name` and `Plan Type` match,Document Type match,fields,clauses
@@ -386,13 +356,13 @@ Otherwise, report only meaningful structural or contextual differences using thi
 
 ---
 
-### Comparison Inputs (Pre-processed to remove placeholders):
+### Comparison Inputs:
 
 Filed Copy - {section_name}:
-{normalized_filed_text}
+{filed_text}
 
 Customer Copy - {section_name}:
-{normalized_customer_text}
+{customer_text}
 """
 
     try:
