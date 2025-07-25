@@ -322,7 +322,8 @@ IMPORTANT: Provide your analysis directly without any headers, labels, or introd
    - Placeholder values like `<xxxx>`, `<dd-mm-yyyy>`, `<amount>`, `Rs. 1,00,000`, etc.
    - Signature blocks, authorized signatories, seals
    - Company addresses, disclaimers, office registration details
-   - Fields with values '-', 'Not Applicable' in one copy but placeholder in the other 
+   - Fields with values '-', 'Not Applicable' in one copy but placeholder in the other
+   - any kind of structural or spaces/gaps
 
 3. **Section-specific checks:**
    - In **FORWARDING LETTER**, ensure `Policy Name` and `Plan Type` match,Document Type match,fields,clauses
