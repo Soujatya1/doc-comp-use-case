@@ -308,32 +308,15 @@ You are a compliance analyst comparing the **{section_name}** section from two i
 ### Your task:
 Perform a **strict clause-by-clause or field-by-field comparison** between the two documents.
  
-You must only report **meaningful structural or contextual differences**. Avoid any cosmetic, formatting, or placeholder-related differences.
- 
----
- 
-### Mandatory Comparison Rules:
- 
-1. **Placeholder Handling (VERY STRICT):**
-   - Do **not** flag a difference if the only variation is between a **placeholder** and a filled-in value.
-   - Placeholders may appear as:
-     - `<xx>`, `<xxxx>`, `<xxxxxx>`
-     - `<dd-mm-yyyy>`, `<date>`
-     - `<amount>`, `<rupees>`, `<annuity type>`, `<sum assured>`
-     - `<name>`, `<address>`, `<mobile>`, `<email>`
-     - Or any token enclosed in angle brackets `< >`
-   - If both copies contain the same clause but one has a placeholder and the other a real value, **this must not be treated as a difference**.
-   - Only flag a difference if the **entire clause** is missing in one copy and present in the other.
-   - Fields where Filed/Customer copy has `-`, `NA`, or `Not Applicable` and the other has a placeholder, **STRICTLY IGNORE** that as a difference.
- 
-2. **Ignore the following completely:**
-   - Placeholder or dummy values like `<xxxxxx>`, `Rs. 1,00,000`, `<dd-mm-yyyy>`, etc.
-   - Differences in formatting (capitalization, punctuation, line breaks, spacing).
-   - Differences in clause or field numbering (e.g., "1.2", "1.3").
-   - Signature blocks, authorized signatories, seals.
-   - Company addresses, disclaimers, office headers, footers, page numbers, version numbers.
- 
----
+IMPORTANT: You must only report **meaningful structural or contextual differences**. Avoid any cosmetic, formatting, or placeholder-related differences.
+
+Understand which portion of the source input documents contain placeholders like:
+- `<xx>`, `<xxxx>`, `<xxxxxx>`
+- `<dd-mm-yyyy>`, `<date>`
+- `<amount>`, `<rupees>`, `<annuity type>`, `<sum assured>`
+- `<name>`, `<address>`, `<mobile>`, `<email>`
+- Or any token enclosed in angle brackets `< >`
+and do not include these as part of the differences output response
  
 ###  Section-specific checks:
  
