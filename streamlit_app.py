@@ -302,17 +302,18 @@ def get_section_difference_with_gpt(section_name, filed_text, customer_text):
 
     prompt = f"""
 You are a compliance analyst comparing the **{section_name}** section from two insurance policy documents: the Filed Copy and the Customer Copy.
-
-IMPORTANT: Provide your analysis directly without any headers, labels, or introductory text like "Comparison Output" or "Analysis Results".
-
+ 
+---
+ 
 ### Your task:
-- Perform a **strict clause-by-clause or field-by-field comparison** between the two versions.
-- **Ignore differences in clause numbers** (e.g., "15)" vs "16)") if the **clause title and content are the same**. Focus on **clause content**, not numbering.
-- **Ignore placeholders**, formatting differences (punctuation, casing, spacing, line breaks), and standard footers.
-
-
-### Mandatory comparison rules:
-
+Perform a **strict clause-by-clause or field-by-field comparison** between the two documents.
+ 
+You must only report **meaningful structural or contextual differences**. Avoid any cosmetic, formatting, or placeholder-related differences.
+ 
+---
+ 
+### Mandatory Comparison Rules:
+ 
 1. **Placeholder Handling (VERY STRICT):**
    - Do **not** flag a difference if the only variation is between a **placeholder** and a filled-in value.
    - Placeholders may appear as:
@@ -331,37 +332,44 @@ IMPORTANT: Provide your analysis directly without any headers, labels, or introd
    - Signature blocks, authorized signatories, seals.
    - Company addresses, disclaimers, office headers, footers, page numbers, version numbers.
    - Fields where one side has `-`, `NA`, or `Not Applicable` and the other has a placeholder.
-
-3. **Section-specific checks:**
-   - In **FORWARDING LETTER**, ensure `Policy Name` and `Plan Type` match,Document Type match,fields,clauses
-   - In **SCHEDULE**, explicitly check :`Due Dates of First Annuity Instalment`
-   - In **PART G**, explicitly check for the subsection **"Address & Contact Details of Ombudsman Centres"**:
-      - Determine whether this subsection is **present in both copies, or missing in one of them**.
-      - If present in both, compare the **Ombudsman city names** in both copies (ignore full addresses).
-      - If the subsection is missing in one copy, clearly state:
-      • The subsection "Address & Contact Details of Ombudsman Centres" is present in the Filed Copy but missing in the Customer Copy.
-      - Ignore differences in:
-        - Street address formatting
-        - Phone numbers, email IDs, pincode formatting
+ 
 ---
-
-### Output format:
-
-If the sections are structurally identical:
+ 
+###  Section-specific checks:
+ 
+- In **FORWARDING LETTER**:
+  - Compare `Policy Name`, `Plan Type`, `Document Type`, and other clauses.
+  - For clauses like “Your Policy requires Premiums to be paid for X years”:
+    - If both copies contain the clause (even with a placeholder in one), ignore any value difference.
+    - If the clause is entirely missing in one copy, flag it.
+ 
+- In **SCHEDULE**:
+  - Explicitly check for the clause: `Due Dates of First Annuity Instalment`.
+  - If it exists in one copy and is missing in the other, report it as a meaningful difference.
+  - Ignore formatting, numbering, and placeholder value differences.
+ 
+- In **PART G**:
+  - For the subsection: `"Address & Contact Details of Ombudsman Centres"`:
+    - Check if the subsection is present in both.
+    - If present, compare only the **city names** (not full addresses).
+    - If missing in one copy, report it clearly.
+    - Ignore formatting, phone/email differences.
+ 
+---
+ 
+###  Output format:
+ 
+If the sections are identical:
 **Both copies are identical.**
-
-Otherwise, report only meaningful structural or contextual differences using this format:
-
+ 
+Otherwise, report only meaningful differences using this format:
+ 
 • In the Customer Copy, the field "XYZ" is missing, which is present in the Filed Copy.  
-• In the Filed Copy, the field "XYZ" is missing, which is present in the Customer Copy.
-• In the Customer Copy, Document "XYZ" is used instead of Document "ABC" the Filed Copy.
-• In the Filed Copy, Document "XYZ" is present but missed in Customer Copy.
-• In the Filed Copy, the clause "ABC" is missing, which is present in the Customer Copy.  
-• In the Customer Copy, the Policy Name / Policy Type "XYZ" differs from the Filed Copy.  
-• In the Customer Copy, the field "Due Dates of First Annuity Instalment" is present, but missing in the Filed Copy.   
-• In the Customer Copy, instead of "Phone Number & Mobile No", the field "Toll-Free Number" is used. 
-• In the Customer Copy instead of Phone Number & Mobile No only Phone Number filed is present
-
+• In the Filed Copy, the field "XYZ" is missing, which is present in the Customer Copy.  
+• In the Customer Copy, the clause "XYZ" differs from the Filed Copy.  
+• In the Customer Copy, instead of "Phone Number & Mobile No", only "Phone Number" is present.  
+• In the Customer Copy, the clause about "Premiums to be paid" is entirely missing, but present in the Filed Copy.  
+ 
 ---
 
 ### Comparison Inputs:
