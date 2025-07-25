@@ -368,7 +368,7 @@ Customer Copy - {section_name}:
     try:
         response = client.chat.completions.create(
             model=deployment_name,
-            temperature=0.3,
+            temperature=0.1,
             messages=[{"role": "user", "content": prompt}]
         )
         return response.choices[0].message.content.strip()
